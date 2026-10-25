@@ -1,0 +1,182 @@
+DBT DATABRICKS - AIRFLOW DEPLOYMENT GUIDE
+=========================================
+Scope: dags/dbt/dbt_databricks (dbt-core 1.7.1 + dbt-databricks 1.7.17, Astro Runtime 3.0-8 / Airflow 3)
+
+
+0. READ THIS FIRST - TWO THINGS THAT BLOCK A LIVE RUN
+-----------------------------------------------------
+(a) PROJECT NAME COLLISION
+    dbt_project.yml has "name: dbt_databricks". That is also the internal package name of the
+    dbt-databricks adapter, and dbt 1.7 refuses to start ("project name conflicts with package").
+    Fix (already prepared):   git apply patches/dbt_project_rename.patch
+    It renames the PROJECT and the "models:" key to dbt_databricks_proj. The PROFILE name stays
+    dbt_databricks, so the *_PROFILES/profiles.yml files are untouched.
+    The pre-flight task fails with this exact message until the patch is applied.
+
+(b) MODELS NOT YET CONVERTED FOR DATABRICKS
+    5,233 of the 5,558 models use  materialized = 'tel_incremental'.  No materialization with that
+    name exists for the Databricks adapter in this project (macros/incremental_helpers.sql only
+    contains helpers), so dbt cannot build those models. Many of the models also still contain
+    Snowflake-dialect SQL. The orchestration is complete and correct, but a live run will fail on
+    those models until the Databricks conversion of the models/macros is finished.
+    The pre-flight task reports the count of unresolved materializations before anything runs.
+    To exercise the DAGs while conversion is in progress, run a subset:
+        select_nodes = "approval_workflow"        (or any task id from the review file)
+    and set  strict_graph_check / skip_preflight  only if you understand why.
+
+
+1. FILES IN THIS DELIVERABLE (copy into astro_datautility/ keeping the folder layout)
+-------------------------------------------------------------------------------------
+dags/DBT_DATABRICKS_PIPELINE.py         Full dbt run, one task per domain/layer, ordered by the dbt ref graph
+dags/DBT_DATABRICKS_EXECUTION.py        Ad-hoc dbt run for any dbt selector or model name
+dags/DATABRICKS_SOURCE_INGESTION.py     One source system -> Databricks landing -> (optional) dependent dbt run
+dags/DATABRICKS_END_TO_END.py           All sources -> landing -> whole dbt pipeline
+include/Python/dbt_databricks_common.py            shared paths, graph loader, env checks, the dbt shell script
+include/Python/dbt_databricks_operators.py         BashOperator subclass (worker mode)
+include/Python/dbt_databricks_job_operator.py      DatabricksSubmitRunOperator subclass (Jobs mode, optional)
+include/Python/dbt_databricks_preflight.py         pre-flight checks
+include/Python/dbt_databricks_airflow_compat.py    Airflow 3 / 2 import shim
+include/Python/databricks_ingestion.py             plan / check / extract / validate for ingestion
+include/Python/generate_dbt_databricks_graph.py    regenerates the dependency graph (see section 6)
+include/Configuration/dbt_databricks_graph.json    GENERATED dependency graph (104 tasks, 68 edges)
+include/Configuration/dbt_databricks_job.example.json   template for Jobs mode
+patches/dbt_project_rename.patch        see 0(a)
+requirements.additions.txt              lines to add to requirements.txt (see section 2)
+
+Not included on purpose: the TelTools_*_Extract.json files. The ingestion DAG reads the ones already in
+include/Configuration of your repo (37 files: 35 SQL Server + 2 Oracle).
+
+
+2. PYTHON PACKAGES
+------------------
+Append requirements.additions.txt to requirements.txt:
+    apache-airflow-providers-databricks
+    databricks-sql-connector
+dbt itself is already in $AIRFLOW_HOME/dbt_venv (Dockerfile). Rebuild/redeploy the image after editing.
+
+
+3. ENVIRONMENT VARIABLES (set per Astro deployment)
+---------------------------------------------------
+Chooses the profile folder:
+    ASTRO_DEPLOYMENT_NAME   DEV | QA | SIT | PROD   -> dags/dbt/dbt_databricks/<NAME>_PROFILES
+
+Required by dbt (checked by pre-flight; the DAG fails early and lists whatever is missing):
+    DATABRICKS_HOST                        workspace host, no https://
+    DATABRICKS_HTTP_PATH                   /sql/1.0/warehouses/<id>
+    DATABRICKS_TOKEN                       PAT or service-principal token (mark as SECRET)
+    DATABRICKS_CATALOG
+    DATABRICKS_LZ_CATALOG    DATABRICKS_LZ_HVR_CATALOG
+    DATABRICKS_BRONZE_CATALOG  DATABRICKS_SILVER_CATALOG  DATABRICKS_GOLD_CATALOG
+    DATABRICKS_ADMIN_CATALOG   DATABRICKS_PUB_CATALOG     DATABRICKS_ODS_CATALOG
+    DATABRICKS_SNOWFLAKE_ACCOUNT_USAGE_CATALOG
+HOST / HTTP_PATH / TOKEN may instead come from the Airflow connection "databricks_default"
+(Databricks type; Host, Extra http_path, Password = token). Another connection id: DBT_DATABRICKS_CONN_ID.
+
+Required by the ingestion DAGs (existing loader, include/Python/databricks_teltools.py):
+    DATABRICKS_DEV_HOST  DATABRICKS_DEV_HTTP_PATH  DATABRICKS_DEV_CLIENT  DATABRICKS_DEV_SECRET
+    SNOWFLAKE_LZ                 (landing catalog name)
+plus the source connection settings the TelTools_SQLServer / TelTools_Oracle extractors already use.
+
+Optional tuning (defaults in brackets):
+    DBT_DATABRICKS_PIPELINE_SCHEDULE   cron for the dbt pipeline [none - manual/triggered]
+    DATABRICKS_E2E_SCHEDULE            cron for the end-to-end DAG [none]
+    DBT_EXECUTION_MODE                 airflow_cli | databricks_job [airflow_cli]
+    DBT_MAX_PARALLEL_NODES             concurrent dbt tasks [8]
+    DBT_THREADS                        default dbt --threads [4]
+    DBT_NODE_TIMEOUT_HOURS             per-task timeout [6]
+    DBT_TASK_RETRIES                   [2 in PROD, 0 elsewhere]
+    INGEST_MAX_PARALLEL_TABLES [6]   INGEST_MAX_ACTIVE_RUNS [6]   INGEST_TASK_RETRIES [2 PROD / 0]
+    INGEST_TABLE_TIMEOUT_HOURS [4]
+    E2E_MAX_PARALLEL_SOURCES [4]       E2E_CONTINUE_ON_INGESTION_FAILURE [false]
+    DBT_DATABRICKS_PROJECT_DIR / TEL_CONFIG_DIR   override project / extract-config locations
+
+
+4. WHAT EACH DAG DOES
+---------------------
+DBT_DATABRICKS_PIPELINE
+    preflight -> 104 dbt tasks (grouped by domain) -> pipeline_complete
+    A task = one dbt invocation for models/<domain>/<layer> (or the dbt_artifacts package).
+    Airflow order between tasks = the dbt ref() graph between those slices (68 edges after
+    transitive reduction). dbt orders the models inside a slice itself.
+    Three silver/gold pairs depend on each other in both directions and are merged into one task:
+        tea_sales_revenue__silver_gold, teh_finance__silver_gold, teh_sales_to_installation__silver_gold
+    Params: dbt_command (run|build|test), select_nodes, skip_nodes, full_refresh, threads, exclude,
+            dbt_vars, fail_fast, use_dbt_retry, skip_preflight, strict_graph_check
+    On an Airflow retry the task runs "dbt retry" so only failed/skipped nodes are repeated.
+    max_active_runs = 1 (two full runs would race on the same incremental tables).
+
+DBT_DATABRICKS_EXECUTION
+    Params: select (any dbt selector, e.g. "tag:daily" or "source:SUPPLIER+") or model_name.
+    Always runs on the worker. Used by the ingestion DAG to refresh what depends on freshly loaded data.
+
+DATABRICKS_SOURCE_INGESTION
+    plan -> check_landing -> extract_load (one mapped task per table) -> validate_load -> dbt_wanted -> trigger_dbt
+    Uses the existing TelTools_SQLServer.main / TelTools_Oracle.main extractors, which write to the landing
+    tables and to CONTROLTABLE. check_landing fails fast if a landing table is missing (the loader never
+    creates tables). validate_load requires a CONTROLTABLE row from this run for every table.
+    Trigger conf examples:
+        {"config_filename": "TelTools_SQLServer_SUPPLIER_Extract.json"}
+        {"config_filename": "TelTools_Oracle_Wisdom_Extract.json", "tables": "MAC_MAIN", "run_dbt": false}
+
+DATABRICKS_END_TO_END
+    check_databricks -> plan_ingestion -> ingest_source (one ingestion run per source, parallel)
+    -> dbt_wanted -> run_dbt_pipeline.   Params include sources, skip_ingestion, skip_dbt + the dbt params.
+    Ingestion runs with run_dbt=false and dbt runs ONCE at the end, so models that combine several
+    sources see all of them freshly loaded. A failed ingestion stops the dbt stage unless
+    E2E_CONTINUE_ON_INGESTION_FAILURE=true.
+
+Coverage note: 37 extract configs exist. 36 map to a dbt source; TelTools_SQLServer_OUTSYSTEMS-ISID_Extract.json
+has no matching dbt source, so it still loads but no dbt refresh is triggered for it by the ingestion DAG. SAP R3, HVR replication, file and API sources are NOT
+part of these DAGs - they keep their existing DAGs and dbt reads whatever has landed.
+
+
+5. EXECUTION MODES
+------------------
+airflow_cli (default, tested with a stand-in dbt executable)
+    dbt runs on the Airflow worker inside dbt_venv and sends SQL to the Databricks SQL warehouse.
+    Handles: one "dbt deps" per worker (file lock + stamp), partial-parse cache, "dbt retry",
+    failure summary from run_results.json, selector/vars passed through environment variables only.
+
+databricks_job (optional, NOT tested against a live workspace)
+    Each task is submitted as a Databricks Jobs run with a dbt_task (DatabricksSubmitRunOperator).
+    Requirements: the dbt project in a Git repo the workspace can read (Jobs cannot run dbt from DBFS),
+    a copy of include/Configuration/dbt_databricks_job.example.json filled in (or the same JSON in
+    DBT_DATABRICKS_JOB_CONFIG), and the secrets as {{secrets/<scope>/<key>}} references.
+    The operator payload and parameter rendering were verified offline; submit a single node first
+    (select_nodes) before enabling it broadly.
+
+
+6. WHEN THE DBT MODELS CHANGE
+-----------------------------
+The DAG structure is read from include/Configuration/dbt_databricks_graph.json so that Airflow never parses
+the 170 MB manifest. Regenerate it whenever models are added, removed or re-pointed:
+    cd astro_datautility
+    python include/Python/generate_dbt_databricks_graph.py --parse
+        (--parse runs "dbt deps" and "dbt parse" first, using placeholder env values; otherwise it reads
+         dags/dbt/dbt_databricks/target/manifest.json)
+Commit the new JSON. The pre-flight task compares a fingerprint of model paths and ref()/source() calls with
+the one stored in the JSON and fails (strict_graph_check=true) when the committed graph is stale.
+
+
+7. FIRST-RUN CHECKLIST
+----------------------
+ 1. git apply patches/dbt_project_rename.patch
+ 2. Append requirements.additions.txt to requirements.txt; redeploy the image.
+ 3. Set the environment variables (section 3); create the "databricks_default" connection if you use it.
+ 4. Confirm the landing schemas/tables and CONTROLTABLE exist in the LZ catalog.
+ 5. Unpause DBT_DATABRICKS_EXECUTION first and trigger it with  select = "approval_workflow"  to check
+    credentials and profiles end to end on a small slice.
+ 6. Trigger DATABRICKS_SOURCE_INGESTION for one small source with run_dbt=false.
+ 7. Only after the models are converted (section 0b): trigger DBT_DATABRICKS_PIPELINE, then DATABRICKS_END_TO_END,
+    then set the schedule variables.
+
+
+8. TROUBLESHOOTING
+------------------
+ "project name ... conflicts"            apply the rename patch (0a)
+ pre-flight: missing env vars            the message lists them; set them on the deployment
+ pre-flight: graph is stale              regenerate and commit the graph JSON (section 6)
+ pre-flight: unresolved materializations models still use tel_incremental (0b)
+ task skipped                            excluded by select_nodes / skip_nodes (intended)
+ downstream task still runs              intended: trigger_rule NONE_FAILED lets a skipped upstream pass
+ check_landing: tables missing           create the landing tables first; the loader never does
