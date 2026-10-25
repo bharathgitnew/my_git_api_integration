@@ -1,0 +1,11 @@
+# Append these lines to astro_datautility/requirements.txt (Airflow-side, NOT dbt_venv).
+# dbt-core 1.7.1 / dbt-databricks 1.7.17 are already installed in $AIRFLOW_HOME/dbt_venv by the Dockerfile.
+#
+# Needed by: DBT_EXECUTION_MODE=databricks_job (DatabricksSubmitRunOperator) and the
+# 'databricks_default' Airflow connection helper.
+apache-airflow-providers-databricks
+# Needed by: DATABRICKS_END_TO_END.check_databricks, the pre-flight 'dbt debug' fallback and the ingestion
+# landing/validation checks (databricks_teltools.py already imports it; keep it if already listed).
+databricks-sql-connector
+# (No pyarrow pin here: the Dockerfile already pins pyarrow inside dbt_venv. Airflow-side pyarrow is whatever
+#  the Astro runtime / existing requirements.txt provide.)

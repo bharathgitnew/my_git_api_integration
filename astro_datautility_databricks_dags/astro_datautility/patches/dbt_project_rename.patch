@@ -1,0 +1,23 @@
+# dbt_project.yml: rename the dbt project from 'dbt_databricks' to 'dbt_databricks_proj'.
+# Why: the project name collides with the dbt-databricks adapter's internal package name
+# ('dbt_databricks'), which dbt 1.7 rejects. The profile name is NOT changed, so the
+# *_PROFILES/profiles.yml files keep working.
+# Apply from the repository root:  git apply patches/dbt_project_rename.patch
+#                           or:  patch -p1 < patches/dbt_project_rename.patch
+--- a/astro_datautility/dags/dbt/dbt_databricks/dbt_project.yml	2026-10-25 17:33:06.186608118 +0000
++++ b/astro_datautility/dags/dbt/dbt_databricks/dbt_project.yml	2026-10-25 17:33:06.188639101 +0000
+@@ -1,4 +1,4 @@
+-name: dbt_databricks
++name: dbt_databricks_proj
+ version: 1.0.0
+ config-version: 2
+ profile: dbt_databricks
+@@ -22,7 +22,7 @@
+ on-run-end:
+ - '{{ dbt_artifacts.upload_results(results) if env_var(''DBT_UPLOAD_ARTIFACTS'', ''false'') | lower == ''true'' }}'
+ models:
+-  dbt_databricks:
++  dbt_databricks_proj:
+     +database: '{{ env_var(''DATABRICKS_CATALOG'') }}'
+     +schema: '{{ env_var(''DATABRICKS_SCHEMA'', ''dbt'') }}'
+     +materialized: incremental
