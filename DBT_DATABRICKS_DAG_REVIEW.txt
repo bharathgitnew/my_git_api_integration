@@ -1,0 +1,2462 @@
+DBT DATABRICKS - AIRFLOW DAG REVIEW BUNDLE
+Generated 2026-10-25   (plain text, open in Notepad++; View > Word wrap off recommended)
+Graph file generated: 2026-10-25T17:05:03+00:00
+
+====================================================================================================
+1. HOW TO REVIEW THIS FILE
+====================================================================================================
+
+Section 2  Validation checklist - what to verify, and where in this file.
+Section 3  Summary numbers
+Section 4  Execution order: every task, its layer, size and upstream tasks (the dbt dependency graph)
+Section 5  Edge list (upstream -> downstream)
+Section 6  Source -> task map (which landed tables feed which tasks)
+Section 7  Extract config -> dbt selector map (ingestion)
+Section 8  Full source of every DAG and helper module
+Tip: search for '##### FILE:' to jump between files.
+
+====================================================================================================
+2. VALIDATION CHECKLIST
+====================================================================================================
+
+[ ] 2.1  dbt_project.yml renamed (patches/dbt_project_rename.patch applied); pre-flight passes the name check.
+[ ] 2.2  Task order: pick 3-4 tasks in Section 4 and confirm their 'after' column against a dbt ref() you know.
+[ ] 2.3  Three merged tasks (silver_gold) are the only places two slices depend on each other both ways.
+[ ] 2.4  DBT_DATABRICKS_PIPELINE.py: trigger_rule NONE_FAILED, max_active_runs=1, max_active_tasks=DBT_MAX_PARALLEL_NODES.
+[ ] 2.5  dbt_databricks_common.py DBT_SHELL_SCRIPT: constant script, all dynamic input via TEL_* env vars (no string formatting).
+[ ] 2.6  Required environment variables list (REQUIRED_DBT_ENV) matches your Astro deployment.
+[ ] 2.7  Profiles: ASTRO_DEPLOYMENT_NAME -> <NAME>_PROFILES folder exists for every deployment you use.
+[ ] 2.8  Ingestion: landing schema rule (SQL Server: name before first '-', upper-case; Oracle: name upper-case) matches your LZ.
+[ ] 2.9  Section 7: each extract config maps to the right dbt source selector (OUTSYSTEMS-ISID has none - intended?).
+[ ] 2.10 KNOWN BLOCKER: 5,233 models use materialized='tel_incremental' (not defined for Databricks) - see DEPLOYMENT_GUIDE.txt 0(b).
+[ ] 2.11 Jobs mode (optional) config reviewed with DBT_DATABRICKS_JOB_CONFIG / dbt_databricks_job.example.json.
+
+====================================================================================================
+3. SUMMARY
+====================================================================================================
+
+dbt project (graph)      : dbt_databricks_proj  (dbt 1.7.1)
+Models in graph          : 5558
+Tests in graph           : 9220
+Airflow dbt tasks        : 104   (+ preflight + pipeline_complete = 106 in DBT_DATABRICKS_PIPELINE)
+Dependency edges         : 68   (before transitive reduction: 91)
+Merged (mutual deps)     : tea_sales_revenue__silver_gold, teh_finance__silver_gold, teh_sales_to_installation__silver_gold
+Disabled models skipped  : 1
+Longest chain (levels)   : 4
+Tasks by layer           : {'admin': 1, 'package': 1, 'bronze': 37, 'gold': 30, 'silver': 32, 'silver_gold': 3}
+Extract configs          : 37  {'sqlserver': 35, 'oracle': 2}
+dbt sources mapped       : 67
+
+====================================================================================================
+4. EXECUTION ORDER (level 0 runs first; tasks on the same level run in parallel, up to the cap)
+====================================================================================================
+
+LVL TASK ID                                              MODELS  TESTS  AFTER (upstream tasks)
+----------------------------------------------------------------------------------------------------
+0   approval_workflow__admin                                  6     12  (starts after preflight)
+0   dbt_artifacts__package                                   34      0  (starts after preflight)
+0   tea_direct_purchasing__bronze                           104    204  (starts after preflight)
+0   tea_diverse_systems_and_solutions__bronze                31      0  (starts after preflight)
+0   tea_gce_afs__bronze                                     263    481  (starts after preflight)
+0   tea_intel_sms__bronze                                   145    292  (starts after preflight)
+0   tea_logistics__bronze                                   130    247  (starts after preflight)
+0   tea_planning__bronze                                    128      0  (starts after preflight)
+0   tea_sales_revenue__bronze                               190    322  (starts after preflight)
+0   tea_service__bronze                                     288    625  (starts after preflight)
+0   tea_spares_revenue__bronze                               57    114  (starts after preflight)
+0   tea_strategic_business_operations__bronze                99    216  (starts after preflight)
+0   tea_technical_support__bronze                           162    367  (starts after preflight)
+0   tea_technical_training__bronze                           14     30  (starts after preflight)
+0   tea_threepl_operations__bronze                            6     12  (starts after preflight)
+0   tee_sales_service_admin__bronze                          23     46  (starts after preflight)
+0   tee_spares_support__bronze                                9     10  (starts after preflight)
+0   teh_applications__bronze                                 34     59  (starts after preflight)
+0   teh_data_ops__bronze                                      9     11  (starts after preflight)
+0   teh_ehs__bronze                                           7     14  (starts after preflight)
+0   teh_equipment_sales__bronze                             170    164  (starts after preflight)
+0   teh_finance__bronze                                     227    436  (starts after preflight)
+0   teh_human_resources__bronze                               2      2  (starts after preflight)
+0   teh_infosec__bronze                                      17     32  (starts after preflight)
+0   teh_international_trade__bronze                          99    148  (starts after preflight)
+0   teh_procurement__bronze                                 101    100  (starts after preflight)
+0   teh_product_support__bronze                               7     11  (starts after preflight)
+0   teh_revenue_cogs__bronze                                182    364  (starts after preflight)
+0   teh_sales_to_installation__bronze                       101    187  (starts after preflight)
+0   teh_support_services__bronze                             62    118  (starts after preflight)
+0   tmea_engineering__bronze                                 84     35  (starts after preflight)
+0   tmea_equipment_sales__bronze                             47     86  (starts after preflight)
+0   tmea_finance__bronze                                     24     35  (starts after preflight)
+0   tmea_manufacturing__bronze                              117    256  (starts after preflight)
+0   tmea_product_support_group__bronze                      161    189  (starts after preflight)
+0   tmea_quality__bronze                                    118    120  (starts after preflight)
+0   tmea_safety__bronze                                       4      6  (starts after preflight)
+0   ttca_quality__bronze                                    141    270  (starts after preflight)
+1   tea_direct_purchasing__silver                            21     42  tea_direct_purchasing__bronze
+1   tea_gce_afs__silver                                      21     42  tea_gce_afs__bronze
+1   tea_intel_sms__silver                                    57    116  tea_intel_sms__bronze
+1   tea_logistics__silver                                    50    100  tea_logistics__bronze
+1   tea_planning__silver                                     42      0  tea_planning__bronze
+1   tea_sales_revenue__silver_gold                           63    126  tea_sales_revenue__bronze  [merged]
+1   tea_service__silver                                     106    211  tea_service__bronze
+1   tea_spares_revenue__silver                                9     18  tea_spares_revenue__bronze
+1   tea_strategic_business_operations__silver                27     54  tea_strategic_business_operations__bronze
+1   tea_technical_support__silver                            69    136  tea_technical_support__bronze
+1   tea_technical_training__silver                            6     12  tea_technical_training__bronze
+1   tea_threepl_operations__silver                            3      6  tea_threepl_operations__bronze
+1   tee_sales_service_admin__silver                           3      6  tee_sales_service_admin__bronze
+1   tee_spares_support__silver                                5     10  tee_spares_support__bronze
+1   teh_applications__silver                                  6     12  teh_applications__bronze
+1   teh_data_ops__silver                                      7     13  dbt_artifacts__package, teh_data_ops__bronze
+1   teh_ehs__silver                                           6     12  teh_ehs__bronze
+1   teh_equipment_sales__silver                              95     82  teh_equipment_sales__bronze
+1   teh_finance__silver_gold                                153    306  teh_finance__bronze  [merged]
+1   teh_human_resources__silver                               2      2  teh_human_resources__bronze
+1   teh_infosec__silver                                       1      2  teh_infosec__bronze
+1   teh_international_trade__silver                           6     10  teh_international_trade__bronze
+1   teh_procurement__silver                                  38     69  teh_procurement__bronze
+1   teh_product_support__silver                               2      4  teh_product_support__bronze
+1   teh_revenue_cogs__silver                                 68    136  teh_revenue_cogs__bronze
+1   teh_sales_to_installation__silver_gold                   76    148  teh_sales_to_installation__bronze  [merged]
+1   teh_support_services__silver                              5      6  teh_support_services__bronze
+1   tmea_engineering__silver                                 57    100  tmea_engineering__bronze
+1   tmea_equipment_sales__silver                             11     22  tmea_equipment_sales__bronze
+1   tmea_manufacturing__silver                               89    176  tmea_manufacturing__bronze
+1   tmea_product_support_group__silver                       72    137  tmea_product_support_group__bronze
+1   tmea_quality__silver                                     94     94  tmea_quality__bronze
+1   tmea_safety__silver                                       5     10  tmea_safety__bronze
+1   tmea_supply_chain__bronze                               112    215  tmea_quality__bronze
+2   tea_direct_purchasing__gold                              11     22  tea_direct_purchasing__silver
+2   tea_gce_afs__gold                                         2      4  tea_gce_afs__silver
+2   tea_intel_sms__gold                                      22     24  tea_intel_sms__silver
+2   tea_logistics__gold                                      30     60  tea_logistics__silver
+2   tea_planning__gold                                        5      0  tea_planning__silver
+2   tea_service__gold                                        30     60  tea_service__silver
+2   tea_spares_revenue__gold                                 11     22  tea_spares_revenue__silver
+2   tea_strategic_business_operations__gold                  13     26  tea_strategic_business_operations__silver
+2   tea_technical_support__gold                               7     14  tea_technical_support__silver
+2   tea_technical_training__gold                              1      2  tea_technical_training__silver
+2   tea_threepl_operations__gold                              3      6  tea_threepl_operations__silver
+2   tee_sales_service_admin__gold                             3      6  tee_sales_service_admin__silver
+2   teh_applications__gold                                    6     12  teh_applications__silver
+2   teh_data_ops__gold                                        5      9  teh_data_ops__silver
+2   teh_ehs__gold                                             1      2  teh_ehs__silver
+2   teh_equipment_sales__gold                               257    200  teh_equipment_sales__silver
+2   teh_infosec__gold                                         3      4  teh_infosec__silver
+2   teh_international_trade__gold                             5     10  teh_international_trade__silver
+2   teh_procurement__gold                                    13     18  teh_procurement__silver
+2   teh_product_support__gold                                 8     14  teh_product_support__silver
+2   teh_revenue_cogs__gold                                   64    128  teh_revenue_cogs__silver
+2   teh_support_services__gold                                9     18  teh_support_services__silver
+2   tmea_engineering__gold                                    4      8  tmea_engineering__silver
+2   tmea_equipment_sales__gold                                1      2  tmea_equipment_sales__silver
+2   tmea_finance__silver                                     26     42  tmea_finance__bronze, tmea_manufacturing__silver
+2   tmea_manufacturing__gold                                 27     52  tmea_manufacturing__silver
+2   tmea_product_support_group__gold                          4      6  tmea_product_support_group__silver
+2   tmea_quality__gold                                       27     54  tmea_quality__silver
+2   tmea_safety__gold                                         3      6  tmea_safety__silver
+2   tmea_supply_chain__silver                               110    218  tmea_supply_chain__bronze
+3   tmea_finance__gold                                        6     11  tmea_finance__silver
+3   tmea_supply_chain__gold                                  51    104  tmea_supply_chain__silver
+
+====================================================================================================
+5. EDGES (upstream -> downstream)
+====================================================================================================
+
+dbt_artifacts__package  ->  teh_data_ops__silver
+tea_direct_purchasing__bronze  ->  tea_direct_purchasing__silver
+tea_direct_purchasing__silver  ->  tea_direct_purchasing__gold
+tea_gce_afs__bronze  ->  tea_gce_afs__silver
+tea_gce_afs__silver  ->  tea_gce_afs__gold
+tea_intel_sms__bronze  ->  tea_intel_sms__silver
+tea_intel_sms__silver  ->  tea_intel_sms__gold
+tea_logistics__bronze  ->  tea_logistics__silver
+tea_logistics__silver  ->  tea_logistics__gold
+tea_planning__bronze  ->  tea_planning__silver
+tea_planning__silver  ->  tea_planning__gold
+tea_sales_revenue__bronze  ->  tea_sales_revenue__silver_gold
+tea_service__bronze  ->  tea_service__silver
+tea_service__silver  ->  tea_service__gold
+tea_spares_revenue__bronze  ->  tea_spares_revenue__silver
+tea_spares_revenue__silver  ->  tea_spares_revenue__gold
+tea_strategic_business_operations__bronze  ->  tea_strategic_business_operations__silver
+tea_strategic_business_operations__silver  ->  tea_strategic_business_operations__gold
+tea_technical_support__bronze  ->  tea_technical_support__silver
+tea_technical_support__silver  ->  tea_technical_support__gold
+tea_technical_training__bronze  ->  tea_technical_training__silver
+tea_technical_training__silver  ->  tea_technical_training__gold
+tea_threepl_operations__bronze  ->  tea_threepl_operations__silver
+tea_threepl_operations__silver  ->  tea_threepl_operations__gold
+tee_sales_service_admin__bronze  ->  tee_sales_service_admin__silver
+tee_sales_service_admin__silver  ->  tee_sales_service_admin__gold
+tee_spares_support__bronze  ->  tee_spares_support__silver
+teh_applications__bronze  ->  teh_applications__silver
+teh_applications__silver  ->  teh_applications__gold
+teh_data_ops__bronze  ->  teh_data_ops__silver
+teh_data_ops__silver  ->  teh_data_ops__gold
+teh_ehs__bronze  ->  teh_ehs__silver
+teh_ehs__silver  ->  teh_ehs__gold
+teh_equipment_sales__bronze  ->  teh_equipment_sales__silver
+teh_equipment_sales__silver  ->  teh_equipment_sales__gold
+teh_finance__bronze  ->  teh_finance__silver_gold
+teh_human_resources__bronze  ->  teh_human_resources__silver
+teh_infosec__bronze  ->  teh_infosec__silver
+teh_infosec__silver  ->  teh_infosec__gold
+teh_international_trade__bronze  ->  teh_international_trade__silver
+teh_international_trade__silver  ->  teh_international_trade__gold
+teh_procurement__bronze  ->  teh_procurement__silver
+teh_procurement__silver  ->  teh_procurement__gold
+teh_product_support__bronze  ->  teh_product_support__silver
+teh_product_support__silver  ->  teh_product_support__gold
+teh_revenue_cogs__bronze  ->  teh_revenue_cogs__silver
+teh_revenue_cogs__silver  ->  teh_revenue_cogs__gold
+teh_sales_to_installation__bronze  ->  teh_sales_to_installation__silver_gold
+teh_support_services__bronze  ->  teh_support_services__silver
+teh_support_services__silver  ->  teh_support_services__gold
+tmea_engineering__bronze  ->  tmea_engineering__silver
+tmea_engineering__silver  ->  tmea_engineering__gold
+tmea_equipment_sales__bronze  ->  tmea_equipment_sales__silver
+tmea_equipment_sales__silver  ->  tmea_equipment_sales__gold
+tmea_finance__bronze  ->  tmea_finance__silver
+tmea_finance__silver  ->  tmea_finance__gold
+tmea_manufacturing__bronze  ->  tmea_manufacturing__silver
+tmea_manufacturing__silver  ->  tmea_finance__silver
+tmea_manufacturing__silver  ->  tmea_manufacturing__gold
+tmea_product_support_group__bronze  ->  tmea_product_support_group__silver
+tmea_product_support_group__silver  ->  tmea_product_support_group__gold
+tmea_quality__bronze  ->  tmea_quality__silver
+tmea_quality__bronze  ->  tmea_supply_chain__bronze
+tmea_quality__silver  ->  tmea_quality__gold
+tmea_safety__bronze  ->  tmea_safety__silver
+tmea_safety__silver  ->  tmea_safety__gold
+tmea_supply_chain__bronze  ->  tmea_supply_chain__silver
+tmea_supply_chain__silver  ->  tmea_supply_chain__gold
+
+====================================================================================================
+6. DBT SOURCE -> TASKS THAT READ IT
+====================================================================================================
+
+ACTIVEDIRECTORY   schemas=['activedirectory']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=5
+      read by: approval_workflow__admin, tea_intel_sms__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_technical_training__bronze, tee_sales_service_admin__bronze, teh_applications__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+ADMIN__ACCESSCONTROL   schemas=['ACCESSCONTROL']  catalog_env=['DATABRICKS_ADMIN_CATALOG']  tables=2
+      read by: (no task)
+ADMIN__SECURITY   schemas=['SECURITY']  catalog_env=['DATABRICKS_ADMIN_CATALOG']  tables=1
+      read by: (no task)
+ADS   schemas=['ADS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=175
+      read by: tea_gce_afs__bronze
+ARIBA   schemas=['Ariba']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=7
+      read by: teh_procurement__bronze
+ATLAN   schemas=['ATLAN']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=2
+      read by: teh_data_ops__bronze
+AZURE_DEVOPS   schemas=['AZURE_DEVOPS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: teh_data_ops__bronze
+BAAN   schemas=['BAAN']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=4
+      read by: tea_direct_purchasing__bronze, tea_intel_sms__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_spares_revenue__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+BAAN3_ORACLE_LIVE   schemas=['BAAN3_ORACLE_LIVE']  catalog_env=['DATABRICKS_LZ_HVR_CATALOG']  tables=58
+      read by: (no task)
+BAAN_ORACLE_LIVE   schemas=['BAAN_ORACLE_LIVE']  catalog_env=['DATABRICKS_LZ_HVR_CATALOG']  tables=221
+      read by: tea_direct_purchasing__bronze, tea_intel_sms__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_spares_revenue__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+CARMA   schemas=['CARMA']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=16
+      read by: tea_logistics__bronze, tea_sales_revenue__bronze, teh_finance__bronze
+CRM   schemas=['CRM']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=8
+      read by: teh_equipment_sales__bronze
+CRMHELPDESK   schemas=['CRMHELPDESK']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=2
+      read by: (no task)
+CRM_FILE   schemas=['CRM_FILE']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=205
+      read by: tea_gce_afs__bronze, tea_logistics__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tee_sales_service_admin__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze, teh_sales_to_installation__bronze, tmea_equipment_sales__bronze, tmea_manufacturing__bronze, tmea_product_support_group__bronze
+CSDPRO   schemas=['CSDPRO']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=21
+      read by: (no task)
+DATA2LOGISTICS   schemas=['DATA2LOGISTICS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=2
+      read by: teh_international_trade__bronze
+DE_OPERATIONS   schemas=['DE_OPERATIONS']  catalog_env=['DATABRICKS_PUB_CATALOG']  tables=8
+      read by: tea_intel_sms__gold, tea_intel_sms__silver, tea_sales_revenue__silver_gold, tea_technical_support__silver, teh_equipment_sales__gold, teh_revenue_cogs__gold
+DE_SAP_REVENUE_COGS   schemas=['DE_SAP_REVENUE_COGS']  catalog_env=['DATABRICKS_PUB_CATALOG']  tables=1
+      read by: tea_sales_revenue__silver_gold
+DTEX   schemas=['DTEX']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: teh_infosec__bronze
+FILE   schemas=['FILE']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=79
+      read by: tea_direct_purchasing__bronze, tea_gce_afs__bronze, tea_intel_sms__bronze, tea_logistics__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_spares_revenue__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_technical_training__bronze, tee_sales_service_admin__bronze, teh_applications__bronze, teh_ehs__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_human_resources__bronze, teh_infosec__bronze, teh_international_trade__bronze, teh_procurement__bronze, teh_product_support__bronze, teh_revenue_cogs__bronze, teh_sales_to_installation__bronze, teh_support_services__bronze, tmea_manufacturing__bronze, tmea_product_support_group__bronze
+GEM   schemas=['GEM']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: (no task)
+GWS   schemas=['GWS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=142
+      read by: ttca_quality__bronze
+IPR   schemas=['IPR']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=41
+      read by: tea_sales_revenue__bronze, teh_international_trade__bronze, teh_procurement__bronze
+ITHD   schemas=['ITHD']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=20
+      read by: teh_support_services__bronze
+KANBANIZE   schemas=['KANBANIZE']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=5
+      read by: teh_data_ops__bronze
+KNOWBE4   schemas=['KNOWBE4']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=7
+      read by: teh_infosec__bronze
+KRONOS   schemas=['kronos']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=3
+      read by: tea_service__bronze, tea_strategic_business_operations__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+LANSWEEPER   schemas=['LANSWEEPER']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=12
+      read by: (no task)
+LEGACY93   schemas=['LEGACY93']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=151
+      read by: tea_service__bronze, tea_technical_support__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+LEGACYPROD1   schemas=['LEGACYPROD1']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=4
+      read by: teh_finance__bronze, teh_revenue_cogs__bronze
+LZ_TELQS   schemas=['TELQS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=19
+      read by: tea_service__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+MDM   schemas=['MDM']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=48
+      read by: tea_direct_purchasing__bronze, tea_intel_sms__bronze, tea_logistics__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_spares_revenue__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_technical_training__bronze, tee_sales_service_admin__bronze, teh_applications__bronze, teh_data_ops__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+MONDAY   schemas=['MONDAY']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=11
+      read by: tea_technical_support__bronze, teh_international_trade__bronze, tmea_engineering__bronze, tmea_manufacturing__bronze
+MSDYNAMICS   schemas=['MSDYNAMICS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=12
+      read by: (no task)
+MYSKILLS   schemas=['MYSKILLS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=3
+      read by: tea_intel_sms__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_technical_training__bronze, tee_sales_service_admin__bronze, teh_applications__bronze, teh_data_ops__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+NOW   schemas=['NOW']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=8
+      read by: tea_sales_revenue__bronze, teh_finance__bronze
+NOWDATA   schemas=['NOW_UAT']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: (no task)
+ODS_SAPH   schemas=['SAPH']  catalog_env=['DATABRICKS_ODS_CATALOG']  tables=1
+      read by: tea_service__bronze
+OPT   schemas=['OPT']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: teh_equipment_sales__bronze, tmea_equipment_sales__bronze
+POWERBI   schemas=['POWERBI']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=5
+      read by: teh_equipment_sales__bronze
+PREFECT   schemas=['PREFECT']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=5
+      read by: teh_equipment_sales__bronze
+PROPHET   schemas=['PROPHET']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=4
+      read by: tea_direct_purchasing__bronze, tea_intel_sms__bronze, tea_planning__bronze, tee_spares_support__bronze
+QVICS   schemas=['QVICS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=70
+      read by: tmea_engineering__bronze, tmea_manufacturing__bronze, tmea_product_support_group__bronze, tmea_quality__bronze
+REDGATE   schemas=['REDGATE']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=5
+      read by: (no task)
+ROSETTA   schemas=['ROSETTA']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=3
+      read by: tea_gce_afs__bronze, tea_intel_sms__bronze, tea_logistics__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, teh_finance__bronze
+RTISS   schemas=['RTISS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: (no task)
+SAPAPI   schemas=['SAPAPI']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=152
+      read by: tea_direct_purchasing__bronze, tea_gce_afs__bronze, tea_intel_sms__bronze, tea_logistics__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, teh_applications__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_international_trade__bronze, teh_procurement__bronze, teh_revenue_cogs__bronze, teh_sales_to_installation__bronze, tmea_manufacturing__bronze, tmea_product_support_group__bronze
+SAPH   schemas=['SAPH']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=296
+      read by: tea_direct_purchasing__bronze, tea_gce_afs__bronze, tea_intel_sms__bronze, tea_logistics__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_threepl_operations__bronze, tee_spares_support__bronze, teh_applications__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_international_trade__bronze, teh_procurement__bronze, teh_revenue_cogs__bronze, teh_sales_to_installation__bronze, tmea_manufacturing__bronze, tmea_product_support_group__bronze
+SAP_ORACLE_LIVE   schemas=['SAP_ORACLE_LIVE']  catalog_env=['DATABRICKS_LZ_CATALOG', 'DATABRICKS_LZ_HVR_CATALOG']  tables=199
+      read by: tee_spares_support__bronze, teh_finance__bronze, teh_international_trade__bronze, tmea_engineering__bronze, tmea_finance__bronze, tmea_manufacturing__bronze, tmea_product_support_group__bronze, tmea_quality__bronze, tmea_supply_chain__bronze
+SERVICENOW   schemas=['SERVICENOW']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=28
+      read by: teh_support_services__bronze
+SF_ACCOUNTUSAGE   schemas=['Account_Usage']  catalog_env=['DATABRICKS_SNOWFLAKE_ACCOUNT_USAGE_CATALOG']  tables=19
+      read by: teh_data_ops__gold
+SHAREPOINT   schemas=['SHAREPOINT']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=80
+      read by: tea_direct_purchasing__bronze, tea_gce_afs__bronze, tea_intel_sms__bronze, tea_logistics__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_technical_training__bronze, tee_sales_service_admin__bronze, teh_applications__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_infosec__bronze, teh_international_trade__bronze, teh_revenue_cogs__bronze, teh_sales_to_installation__bronze, teh_support_services__bronze, tmea_engineering__bronze, tmea_equipment_sales__bronze, tmea_manufacturing__bronze, tmea_product_support_group__bronze, tmea_quality__bronze, tmea_safety__bronze, tmea_supply_chain__bronze
+SIRFIS   schemas=['sirfis']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=4
+      read by: teh_equipment_sales__bronze, teh_product_support__bronze, teh_sales_to_installation__bronze
+STATIC_OBJECTS   schemas=['STATIC_OBJECTS', 'TEH_SALES_TO_INSTALLATION']  catalog_env=['DATABRICKS_BRONZE_CATALOG', 'DATABRICKS_LZ_CATALOG']  tables=23
+      read by: tea_direct_purchasing__silver, tea_gce_afs__silver, tea_intel_sms__gold, tea_intel_sms__silver, tea_logistics__gold, tea_logistics__silver, tea_planning__gold, tea_planning__silver, tea_sales_revenue__silver_gold, tea_service__gold, tea_service__silver, tea_strategic_business_operations__gold, tea_strategic_business_operations__silver, tea_technical_support__silver, tea_technical_training__silver, tee_sales_service_admin__gold, teh_applications__gold, teh_data_ops__silver, teh_equipment_sales__gold, teh_equipment_sales__silver, teh_finance__silver_gold, teh_product_support__bronze, teh_revenue_cogs__gold, teh_revenue_cogs__silver, teh_sales_to_installation__bronze, teh_sales_to_installation__silver_gold, tmea_engineering__gold, tmea_finance__gold, tmea_manufacturing__gold, tmea_product_support_group__gold, tmea_product_support_group__silver, tmea_quality__gold, tmea_safety__gold
+SUPPLIER   schemas=['SUPPLIER']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=19
+      read by: tmea_quality__bronze, tmea_supply_chain__bronze
+TEACOMMON   schemas=['TEACOMMON']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=5
+      read by: tea_gce_afs__bronze, tea_intel_sms__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_technical_training__bronze, tee_sales_service_admin__bronze, teh_applications__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_infosec__bronze, teh_revenue_cogs__bronze, teh_sales_to_installation__bronze, teh_support_services__bronze, tmea_product_support_group__bronze
+TEH_INFOSEC   schemas=['TEH_INFOSEC']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: teh_infosec__bronze
+TELCUSTOMER   schemas=['TELCUSTOMER']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=26
+      read by: tea_diverse_systems_and_solutions__bronze, teh_equipment_sales__bronze, teh_sales_to_installation__bronze
+TELCUSTOMER_DIVERSESYSTEMS   schemas=['TELCUSTOMER']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=25
+      read by: tea_diverse_systems_and_solutions__bronze
+TGIS   schemas=['TGIS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=17
+      read by: teh_support_services__bronze
+THREEPL   schemas=['THREEPL']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=11
+      read by: tea_direct_purchasing__bronze, tea_intel_sms__bronze, tea_logistics__bronze, tea_threepl_operations__bronze, teh_finance__bronze
+TIRS   schemas=['TIRS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=5
+      read by: tea_service__bronze, tea_technical_support__bronze, teh_ehs__bronze, teh_equipment_sales__bronze, tmea_product_support_group__bronze, tmea_safety__bronze
+TMEA_AZURE_DEVOPS   schemas=['TMEA_AZURE_DEVOPS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: tmea_engineering__bronze
+UPS   schemas=['UPS']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=9
+      read by: teh_international_trade__bronze
+WINDCHILL   schemas=['WINDCHILL']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=2
+      read by: tmea_supply_chain__bronze
+WISDOM   schemas=['Wisdom']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=20
+      read by: tea_gce_afs__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze, teh_sales_to_installation__bronze, tmea_engineering__bronze, tmea_equipment_sales__bronze, tmea_product_support_group__bronze, tmea_quality__bronze, tmea_supply_chain__bronze
+WORKDAY   schemas=['Workday']  catalog_env=['DATABRICKS_LZ_CATALOG']  tables=1
+      read by: tea_intel_sms__bronze, tea_planning__bronze, tea_sales_revenue__bronze, tea_service__bronze, tea_strategic_business_operations__bronze, tea_technical_support__bronze, tea_technical_training__bronze, tee_sales_service_admin__bronze, teh_applications__bronze, teh_equipment_sales__bronze, teh_finance__bronze, teh_revenue_cogs__bronze
+
+====================================================================================================
+7. EXTRACT CONFIG -> LANDING SCHEMA -> DBT SELECTOR
+====================================================================================================
+
+CONFIG FILE                                                       KIND      LANDING       TABLES  DBT SELECT
+----------------------------------------------------------------------------------------------------
+TelTools_Oracle_Now_Extract.json                                  oracle    NOW                8  source:NOW+
+TelTools_Oracle_Wisdom_Extract.json                               oracle    WISDOM            19  source:WISDOM+
+TelTools_SQLServer_ADS-MADataOutputProduction_Extract.json        sqlserver ADS                3  source:ADS+
+TelTools_SQLServer_ADS-MADataSilver_Extract.json                  sqlserver ADS               79  source:ADS+
+TelTools_SQLServer_ADS-Parts_Counter_Production_Extract.json      sqlserver ADS                2  source:ADS+
+TelTools_SQLServer_ADS-TFFanalytics_Extract.json                  sqlserver ADS               58  source:ADS+
+TelTools_SQLServer_CARMA_Extract.json                             sqlserver CARMA             16  source:CARMA+
+TelTools_SQLServer_CRMHELPDESK_Extract.json                       sqlserver CRMHELPDESK        1  source:CRMHELPDESK+
+TelTools_SQLServer_CSDPRO_Extract.json                            sqlserver CSDPRO            21  source:CSDPRO+
+TelTools_SQLServer_GEM_Extract.json                               sqlserver GEM                1  source:GEM+
+TelTools_SQLServer_GWS_Extract.json                               sqlserver GWS              141  source:GWS+
+TelTools_SQLServer_IPR-VIEWS_Extract.json                         sqlserver IPR                7  source:IPR+
+TelTools_SQLServer_IPR_Extract.json                               sqlserver IPR               33  source:IPR+
+TelTools_SQLServer_LANSWEEPER_Extract.json                        sqlserver LANSWEEPER        12  source:LANSWEEPER+
+TelTools_SQLServer_MDM_Extract.json                               sqlserver MDM               22  source:MDM+
+TelTools_SQLServer_MYSKILLS_Extract.json                          sqlserver MYSKILLS           3  source:MYSKILLS+
+TelTools_SQLServer_OPT-SALES_Extract.json                         sqlserver OPT                1  source:OPT+
+TelTools_SQLServer_OUTSYSTEMS-ISID_Extract.json                   sqlserver OUTSYSTEMS         1  (none)
+TelTools_SQLServer_QVICS-NEW_Extract.json                         sqlserver QVICS             20  source:QVICS+
+TelTools_SQLServer_QVICS-TMEA_Extract.json                        sqlserver QVICS             46  source:QVICS+
+TelTools_SQLServer_QVICS-Trouble_Extract.json                     sqlserver QVICS              1  source:QVICS+
+TelTools_SQLServer_QVICS_Extract.json                             sqlserver QVICS              2  source:QVICS+
+TelTools_SQLServer_REDGATE_Extract.json                           sqlserver REDGATE            5  source:REDGATE+
+TelTools_SQLServer_ROSETTA_Extract.json                           sqlserver ROSETTA            3  source:ROSETTA+
+TelTools_SQLServer_RTISS_Extract.json                             sqlserver RTISS              1  source:RTISS+
+TelTools_SQLServer_SUPPLIER_Extract.json                          sqlserver SUPPLIER          19  source:SUPPLIER+
+TelTools_SQLServer_TEACOMMON_Extract.json                         sqlserver TEACOMMON          4  source:TEACOMMON+
+TelTools_SQLServer_TELCUSTOMER-Adhoc_Extract.json                 sqlserver TELCUSTOMER        5  source:TELCUSTOMER+ source:TELCUSTOMER_DIVERSESYSTEMS+
+TelTools_SQLServer_TELCUSTOMER-DIVERSESYSTEMS_Extract.json        sqlserver TELCUSTOMER       24  source:TELCUSTOMER+ source:TELCUSTOMER_DIVERSESYSTEMS+
+TelTools_SQLServer_TELCUSTOMER-GSINTEL_Extract.json               sqlserver TELCUSTOMER        2  source:TELCUSTOMER+ source:TELCUSTOMER_DIVERSESYSTEMS+
+TelTools_SQLServer_TELCUSTOMER-MINI_Extract.json                  sqlserver TELCUSTOMER        3  source:TELCUSTOMER+ source:TELCUSTOMER_DIVERSESYSTEMS+
+TelTools_SQLServer_TELCUSTOMER_Extract.json                       sqlserver TELCUSTOMER       20  source:TELCUSTOMER+ source:TELCUSTOMER_DIVERSESYSTEMS+
+TelTools_SQLServer_TELQS_Extract.json                             sqlserver TELQS             18  source:LZ_TELQS+
+TelTools_SQLServer_TGIS_Extract.json                              sqlserver TGIS              16  source:TGIS+
+TelTools_SQLServer_TIRS-TMEA_Extract.json                         sqlserver TIRS               1  source:TIRS+
+TelTools_SQLServer_TIRS_Extract.json                              sqlserver TIRS               4  source:TIRS+
+TelTools_SQLServer_ThreePL_Extract.json                           sqlserver THREEPL           10  source:THREEPL+
+
+====================================================================================================
+8. SOURCE CODE
+====================================================================================================
+
+
+####################################################################################################
+##### FILE: dags/DBT_DATABRICKS_PIPELINE.py   (138 lines)
+####################################################################################################
+"""
+### DBT_DATABRICKS_PIPELINE
+
+Runs the **entire `dbt_databricks` project on Databricks** in dependency order.
+
+**How the graph is built.** The project has ~5,500 models, so one Airflow task per model is not
+practical (every dbt call parses the project). Instead there is one task per *domain/layer slice*
+(`models/<domain>/<layer>`, plus the `dbt_artifacts` package) and the edges between slices come
+straight from the dbt `ref()` graph (`include/Configuration/dbt_databricks_graph.json`, generated by
+`include/Python/generate_dbt_databricks_graph.py`). Every cross-slice model dependency is enforced by
+an Airflow edge; dbt orders the models *inside* a slice itself. Slices that depend on each other in
+both directions (e.g. `teh_finance` silver <-> gold) are merged into one task.
+
+**Execution.** Default: dbt runs from `dbt_venv` on the Airflow worker and sends SQL to the Databricks
+SQL warehouse. Set `DBT_EXECUTION_MODE=databricks_job` to submit each slice as a Databricks Jobs
+`dbt_task` instead (see `include/Python/dbt_databricks_job_operator.py`).
+
+**Run parameters** (Trigger DAG w/ config)
+
+| param | meaning |
+|---|---|
+| `dbt_command` | `run` (default), `build` (models + tests) or `test` |
+| `select_nodes` | comma list of task ids or domains to run, e.g. `tea_service,teh_finance`; empty = all. Unselected upstream tasks are treated as done. |
+| `skip_nodes` | comma list of task ids/domains to skip, e.g. `dbt_artifacts` |
+| `full_refresh` | pass `--full-refresh` (rebuilds incremental models) |
+| `threads` | dbt threads per task (mind SQL warehouse concurrency) |
+| `exclude` | extra dbt `--exclude` selector |
+| `dbt_vars` | extra dbt `--vars` as YAML/JSON |
+| `fail_fast` | pass `--fail-fast` |
+| `use_dbt_retry` | on an Airflow retry, only re-run what failed (`dbt retry`) |
+| `skip_preflight` / `strict_graph_check` | see the `preflight` task |
+
+**Deployment variables**: see `DEPLOYMENT_GUIDE.txt` (DATABRICKS_* variables, `DBT_EXECUTION_MODE`,
+`DBT_MAX_PARALLEL_NODES`, `DBT_DATABRICKS_PIPELINE_SCHEDULE`).
+"""
+from __future__ import annotations
+
+import logging
+import os
+from datetime import timedelta
+
+import pendulum
+
+from include.Python import dbt_databricks_common as C
+from include.Python.dbt_databricks_airflow_compat import DAG, EmptyOperator, Param, TaskGroup, TriggerRule, task
+from include.Python.dbt_databricks_operators import DbtDatabricksBashOperator
+
+log = logging.getLogger("airflow.task")
+
+EXECUTION_MODE = os.environ.get("DBT_EXECUTION_MODE", "airflow_cli").strip().lower()
+MAX_PARALLEL_NODES = int(os.environ.get("DBT_MAX_PARALLEL_NODES", "8"))
+NODE_TIMEOUT_HOURS = float(os.environ.get("DBT_NODE_TIMEOUT_HOURS", "6"))
+SCHEDULE = os.environ.get("DBT_DATABRICKS_PIPELINE_SCHEDULE") or None  # cron string; None = triggered only
+RETRIES = int(os.environ.get("DBT_TASK_RETRIES", "2" if C.IS_PROD else "0"))
+
+GRAPH = C.load_graph()  # small JSON, validated (unique ids, known edges, acyclic)
+NODES = {n["id"]: n for n in GRAPH["nodes"]}
+
+if EXECUTION_MODE not in ("airflow_cli", "databricks_job"):
+    raise ValueError(f"DBT_EXECUTION_MODE must be 'airflow_cli' or 'databricks_job', got {EXECUTION_MODE!r}")
+JOB_CONFIG = None
+if EXECUTION_MODE == "databricks_job":
+    from include.Python.dbt_databricks_job_operator import DbtDatabricksJobOperator, load_job_config
+    JOB_CONFIG = load_job_config()
+
+PARAMS = {
+    "dbt_command": Param("run", type="string", enum=["run", "build", "test"],
+                         description="run = models only; build = models + tests; test = tests only"),
+    "select_nodes": Param("", type="string", description="Comma list of task ids / domains to run (empty = all)"),
+    "skip_nodes": Param("", type="string", description="Comma list of task ids / domains to skip"),
+    "full_refresh": Param(False, type="boolean", description="dbt --full-refresh"),
+    "threads": Param(int(os.environ.get("DBT_THREADS", "4")), type="integer", minimum=1, maximum=64),
+    "exclude": Param("", type="string", description="Additional dbt --exclude selector"),
+    "dbt_vars": Param("", type="string", description="dbt --vars as YAML/JSON, e.g. {run_date: 2026-01-01}"),
+    "fail_fast": Param(False, type="boolean"),
+    "use_dbt_retry": Param(True, type="boolean", description="On Airflow retry run `dbt retry` (failed/skipped nodes only)"),
+    "skip_preflight": Param(False, type="boolean", description="Bypass pre-flight checks (not recommended)"),
+    "strict_graph_check": Param(True, type="boolean", description="Fail (not just warn) when the committed graph is stale"),
+}
+
+
+def _make_node_task(node: dict):
+    common = dict(
+        task_id=node["task"],
+        trigger_rule=TriggerRule.NONE_FAILED,  # an excluded/skipped upstream must not block downstream
+        execution_timeout=timedelta(hours=NODE_TIMEOUT_HOURS),
+        doc_md=(
+            f"**{node['id']}**: {node['models']} models, {node['tests']} tests\n\n"
+            f"selector: `{node['selector']}`\n\nsources: {', '.join(node['sources']) or '-'}"
+            + ("\n\n_Merged because these slices depend on each other in both directions._" if node["merged_cycle"] else "")
+        ),
+    )
+    if EXECUTION_MODE == "databricks_job":
+        return DbtDatabricksJobOperator(
+            dbt_node_id=node["id"], dbt_domain=node["group"], select=node["selector"], job_config=JOB_CONFIG, **common
+        )
+    return DbtDatabricksBashOperator(select=node["selector"], dbt_node_id=node["id"], dbt_domain=node["group"], **common)
+
+
+with DAG(
+    dag_id="DBT_DATABRICKS_PIPELINE",
+    description="Dependency-ordered dbt run of the dbt_databricks project on Databricks",
+    doc_md=__doc__,
+    start_date=pendulum.datetime(2025, 9, 1, tz="America/Chicago"),
+    schedule=SCHEDULE,
+    catchup=False,
+    max_active_runs=1,  # two full runs would race on the same incremental tables
+    max_active_tasks=MAX_PARALLEL_NODES,
+    params=PARAMS,
+    default_args={"owner": "data-platform", "retries": RETRIES, "retry_delay": timedelta(minutes=5)},
+    tags=["dbt", "databricks", "dbt_databricks"],
+) as dag:
+
+    @task(task_id="preflight", retries=0)
+    def preflight(**context):
+        from include.Python.dbt_databricks_preflight import run_preflight
+        return run_preflight(dict(context["params"]), check_graph_file=True)
+
+    start = preflight()
+    end = EmptyOperator(task_id="pipeline_complete", trigger_rule=TriggerRule.NONE_FAILED)
+
+    groups: dict[str, TaskGroup] = {}
+    tasks: dict[str, object] = {}
+    for node in GRAPH["nodes"]:
+        if node["group"] not in groups:  # (setdefault would build a TaskGroup on every iteration)
+            groups[node["group"]] = TaskGroup(group_id=node["group"])
+        with groups[node["group"]]:
+            tasks[node["id"]] = _make_node_task(node)
+
+    has_upstream = {down for _, down in GRAPH["edges"]}
+    has_downstream = {up for up, _ in GRAPH["edges"]}
+    for up, down in GRAPH["edges"]:
+        tasks[up] >> tasks[down]
+    for node_id, t in tasks.items():
+        if node_id not in has_upstream:
+            start >> t
+        if node_id not in has_downstream:
+            t >> end
+
+####################################################################################################
+##### FILE: dags/DBT_DATABRICKS_EXECUTION.py   (78 lines)
+####################################################################################################
+"""
+### DBT_DATABRICKS_EXECUTION
+
+Run **any dbt selector** against the `dbt_databricks` project on Databricks - the Databricks
+counterpart of `DBT_EXECUTION_NEW_PLATFORM`. Use it for ad-hoc runs, or let a driver / ingestion DAG
+trigger it after new data lands.
+
+Trigger with config, for example:
+
+    {"select": "source:SUPPLIER+"}                       # everything downstream of one source
+    {"select": "+tag:finance", "dbt_command": "build"}   # a tag, with its parents, models + tests
+    {"select": "path:models/tea_service/bronze"}         # one layer of one domain
+    {"model_name": "BRONZE__TEH_DATA_OPS__KANBANIZE_CARDS"}   # same key the existing DRIVER_* DAGs send
+
+`select` is a normal dbt selector (space separated = union). `model_name` is accepted as an alias.
+For a dependency-ordered run of the *whole* project use `DBT_DATABRICKS_PIPELINE`.
+
+Execution: dbt from `dbt_venv` on the worker -> Databricks SQL warehouse. (The optional Databricks
+Jobs `dbt_task` mode, `DBT_EXECUTION_MODE=databricks_job`, applies to `DBT_DATABRICKS_PIPELINE` only;
+this DAG always runs in the default worker mode.)
+"""
+from __future__ import annotations
+
+import os
+from datetime import timedelta
+
+import pendulum
+
+from include.Python import dbt_databricks_common as C
+from include.Python.dbt_databricks_airflow_compat import DAG, Param, task
+from include.Python.dbt_databricks_operators import DbtDatabricksBashOperator
+
+RETRIES = int(os.environ.get("DBT_TASK_RETRIES", "1" if C.IS_PROD else "0"))
+
+PARAMS = {
+    "select": Param("", type="string", description="dbt selector, e.g. 'source:SUPPLIER+' or '+tag:finance'"),
+    "model_name": Param("", type="string", description="Alias for `select` (used by existing DRIVER_* DAGs)"),
+    "dbt_command": Param("run", type="string", enum=["run", "build", "test"]),
+    "full_refresh": Param(False, type="boolean"),
+    "threads": Param(int(os.environ.get("DBT_THREADS", "4")), type="integer", minimum=1, maximum=64),
+    "exclude": Param("", type="string"),
+    "dbt_vars": Param("", type="string", description="dbt --vars as YAML/JSON"),
+    "fail_fast": Param(False, type="boolean"),
+    "use_dbt_retry": Param(True, type="boolean"),
+    "skip_preflight": Param(False, type="boolean"),
+    "strict_graph_check": Param(False, type="boolean", description="Not used by ad-hoc runs; graph freshness is checked by the pipeline DAG"),
+}
+
+with DAG(
+    dag_id="DBT_DATABRICKS_EXECUTION",
+    description="Run an arbitrary dbt selector on Databricks (dbt_databricks project)",
+    doc_md=__doc__,
+    start_date=pendulum.datetime(2025, 9, 1, tz="America/Chicago"),
+    schedule=None,
+    catchup=False,
+    max_active_runs=4,
+    params=PARAMS,
+    default_args={"owner": "data-platform", "retries": RETRIES, "retry_delay": timedelta(minutes=5)},
+    tags=["dbt", "databricks", "dbt_databricks"],
+) as dag:
+
+    @task(task_id="preflight", retries=0)
+    def preflight(**context):
+        from include.Python.dbt_databricks_airflow_compat import AirflowFailException
+        from include.Python.dbt_databricks_preflight import run_preflight
+
+        params = dict(context["params"])
+        conf = getattr(context.get("dag_run"), "conf", None) or {}
+        if not (params.get("select") or params.get("model_name") or conf.get("select") or conf.get("model_name")):
+            raise AirflowFailException("Provide a dbt selector: trigger with {\"select\": \"...\"} (or \"model_name\").")
+        return run_preflight(params, check_graph_file=False)
+
+    run = DbtDatabricksBashOperator(
+        task_id="dbt",
+        select_param=("select", "model_name"),
+        execution_timeout=timedelta(hours=float(os.environ.get("DBT_NODE_TIMEOUT_HOURS", "6"))),
+    )
+    preflight() >> run
+
+####################################################################################################
+##### FILE: dags/DATABRICKS_SOURCE_INGESTION.py   (137 lines)
+####################################################################################################
+"""
+### DATABRICKS_SOURCE_INGESTION
+
+Loads **one source system into the Databricks landing zone**, then (optionally) refreshes everything in
+dbt that depends on it.
+
+    plan -> check_landing -> extract_load (one mapped task per table) -> validate_load -> trigger dbt
+
+* **Source -> Databricks**: the existing extractors do the work, unchanged -
+  `TelTools_SQLServer.main` / `TelTools_Oracle.main` read the source in chunks and write to the landing
+  table via `databricks_teltools` (parquet -> Unity Catalog Volume -> `INSERT ... SELECT`), recording each
+  run in `<LZ catalog>.<SCHEMA>.CONTROLTABLE`.
+* **check_landing** fails in seconds if a landing table is missing (the loader never auto-creates tables).
+* **validate_load** confirms every table wrote a CONTROLTABLE row during this run and logs row counts.
+* **trigger dbt** runs `DBT_DATABRICKS_EXECUTION` with `source:<name>+` for the dbt sources this config
+  feeds (mapping generated into `dbt_databricks_graph.json`), so bronze -> silver -> gold refresh in order.
+
+Trigger with config, for example:
+
+    {"config_filename": "TelTools_SQLServer_SUPPLIER_Extract.json"}
+    {"config_filename": "TelTools_Oracle_Wisdom_Extract.json", "tables": "MAC_MAIN,SAP_SURB", "run_dbt": false}
+
+| param | meaning |
+|---|---|
+| `config_filename` | an extract config in `include/Configuration` (SQL Server or Oracle) |
+| `tables` | comma list of *source* table names; empty = every table in the config |
+| `run_dbt` | trigger the dependent dbt run afterwards (default true) |
+| `dbt_command` | `run` (default) / `build` / `test` for that dbt run |
+| `check_landing_tables` | verify landing tables exist first (default true) |
+| `fail_on_empty_load` | fail if any table loaded 0 rows (default false: normal for incremental loads) |
+
+Sources not covered here (SAP R3 via `getSapR3Data`, HVR replication, file/API pulls, ...) keep their
+existing DAGs; `DBT_DATABRICKS_PIPELINE` picks their landed data up.
+"""
+from __future__ import annotations
+
+import os
+from datetime import timedelta
+
+import pendulum
+
+from include.Python import dbt_databricks_common as C
+from include.Python import databricks_ingestion as ING
+from include.Python.dbt_databricks_airflow_compat import (
+    DAG, Param, TriggerDagRunOperator, TriggerRule, get_current_context, task,
+)
+
+MAX_PARALLEL_TABLES = int(os.environ.get("INGEST_MAX_PARALLEL_TABLES", "6"))
+RETRIES = int(os.environ.get("INGEST_TASK_RETRIES", "2" if C.IS_PROD else "0"))
+CONFIG_CHOICES = [""] + ING.discover_config_files()
+
+PARAMS = {
+    "config_filename": Param("", type="string", enum=CONFIG_CHOICES,
+                             description="Extract config to load (TelTools_SQLServer_*_Extract.json / TelTools_Oracle_*_Extract.json)"),
+    "tables": Param("", type="string", description="Comma list of source tables; empty = all in the config"),
+    "run_dbt": Param(True, type="boolean", description="Trigger the dependent dbt run after loading"),
+    "dbt_command": Param("run", type="string", enum=["run", "build", "test"]),
+    "check_landing_tables": Param(True, type="boolean"),
+    "fail_on_empty_load": Param(False, type="boolean"),
+}
+
+with DAG(
+    dag_id="DATABRICKS_SOURCE_INGESTION",
+    description="Extract one source system and load it into the Databricks landing zone, then refresh dependent dbt models",
+    doc_md=__doc__,
+    start_date=pendulum.datetime(2025, 9, 1, tz="America/Chicago"),
+    schedule=None,
+    catchup=False,
+    max_active_runs=int(os.environ.get("INGEST_MAX_ACTIVE_RUNS", "6")),
+    params=PARAMS,
+    default_args={"owner": "data-platform", "retries": RETRIES, "retry_delay": timedelta(minutes=3)},
+    tags=["databricks", "ingestion", "teltools"],
+) as dag:
+
+    @task(task_id="plan", retries=0)
+    def plan(**context):
+        p = context["params"]
+        result = ING.plan_ingestion(p.get("config_filename", ""), p.get("tables", ""))
+        print(f"{result['config_filename']}: {len(result['tables'])} table(s) -> "
+              f"{result['landing_schema']} schema; dbt selector: {result['dbt_select'] or '(none)'}")
+        return result
+
+    @task(task_id="table_list", retries=0)
+    def table_list(plan_result: dict):
+        return plan_result["tables"]  # dynamic task mapping needs a list-valued XCom, not a dict key
+
+    @task(task_id="check_landing", retries=0)
+    def check_landing(plan_result: dict, **context):
+        if not context["params"].get("check_landing_tables", True):
+            print("check_landing_tables=false: skipped")
+            return {}
+        return ING.check_landing(plan_result)
+
+    @task(
+        task_id="extract_load",
+        map_index_template="{{ ingest_label }}",
+        max_active_tis_per_dag=MAX_PARALLEL_TABLES,
+        execution_timeout=timedelta(hours=float(os.environ.get("INGEST_TABLE_TIMEOUT_HOURS", "4"))),
+    )
+    def extract_load(plan_result: dict, table: str):
+        get_current_context()["ingest_label"] = f"{table}"
+        ING.extract_one(plan_result["config_filename"], table)
+
+    @task(task_id="validate_load", retries=0)
+    def validate_load(plan_result: dict, **context):
+        return ING.validate_load(plan_result, fail_on_empty=bool(context["params"].get("fail_on_empty_load")))
+
+    @task.short_circuit(task_id="dbt_wanted", trigger_rule=TriggerRule.ALL_SUCCESS)
+    def dbt_wanted(plan_result: dict, **context):
+        if not context["params"].get("run_dbt", True):
+            print("run_dbt=false: dbt refresh skipped")
+            return False
+        if not plan_result["dbt_select"]:
+            print("No dbt source is mapped to this config; dbt refresh skipped")
+            return False
+        return True
+
+    trigger_dbt = TriggerDagRunOperator(
+        task_id="trigger_dbt",
+        trigger_dag_id="DBT_DATABRICKS_EXECUTION",
+        trigger_run_id="ingest_{{ dag_run.run_id }}",
+        reset_dag_run=True,
+        wait_for_completion=True,
+        poke_interval=60,
+        conf={
+            "select": "{{ ti.xcom_pull(task_ids='plan')['dbt_select'] }}",
+            "dbt_command": "{{ params.dbt_command }}",
+        },
+    )
+
+    planned = plan()
+    landing_ok = check_landing(planned)
+    loaded = extract_load.partial(plan_result=planned).expand(table=table_list(planned))
+    landing_ok >> loaded
+    validated = validate_load(planned)
+    loaded >> validated
+    validated >> dbt_wanted(planned) >> trigger_dbt
+
+####################################################################################################
+##### FILE: dags/DATABRICKS_END_TO_END.py   (158 lines)
+####################################################################################################
+"""
+### DATABRICKS_END_TO_END
+
+The **full workflow in one DAG**: source systems -> Databricks landing -> dbt bronze/silver/gold.
+
+    check_databricks -> plan_ingestion -> ingest_source (one DATABRICKS_SOURCE_INGESTION run per source,
+    in parallel) -> dbt_wanted -> run_dbt_pipeline (DBT_DATABRICKS_PIPELINE, dependency ordered)
+
+* Every source ingestion run is a separate `DATABRICKS_SOURCE_INGESTION` DAG run (visible, retryable on
+  its own). They are triggered with `run_dbt=false`; dbt runs **once** at the end over the whole graph so
+  models that combine several sources see all of them freshly loaded.
+* By default a failed ingestion stops the dbt stage (data would be inconsistent). Set the deployment
+  variable `E2E_CONTINUE_ON_INGESTION_FAILURE=true` to run dbt anyway, or exclude the failing source with
+  the `sources` param / `skip_ingestion`.
+* Sources that are not extracted by Airflow's SQL Server/Oracle extractors (SAP R3, HVR, files, APIs) keep
+  their own DAGs; run them first or on their own schedule - dbt simply reads whatever has landed.
+
+Schedule: none by default. Set `DATABRICKS_E2E_SCHEDULE` (cron, e.g. `0 2 * * *`) on the deployment.
+
+| param | meaning |
+|---|---|
+| `sources` | comma list of extractor names (`SUPPLIER`, `Wisdom`, `sqlserver:QVICS`, or a config file name); empty = all |
+| `skip_ingestion` | only run dbt |
+| `skip_dbt` | only ingest |
+| `dbt_command`, `full_refresh`, `threads`, `select_nodes`, `skip_nodes`, `exclude`, `dbt_vars`, `fail_fast` | passed to `DBT_DATABRICKS_PIPELINE` |
+"""
+from __future__ import annotations
+
+import os
+from datetime import timedelta
+
+import pendulum
+
+from include.Python import dbt_databricks_common as C
+from include.Python.dbt_databricks_airflow_compat import (
+    DAG, AirflowFailException, Param, TriggerDagRunOperator, TriggerRule, task,
+)
+
+SCHEDULE = os.environ.get("DATABRICKS_E2E_SCHEDULE") or None
+INGEST_PARALLEL_SOURCES = int(os.environ.get("E2E_MAX_PARALLEL_SOURCES", "4"))
+CONTINUE_ON_INGESTION_FAILURE = os.environ.get("E2E_CONTINUE_ON_INGESTION_FAILURE", "false").strip().lower() == "true"
+
+PARAMS = {
+    "sources": Param("", type="string", description="Comma list of extractor names / config files; empty = all"),
+    "skip_ingestion": Param(False, type="boolean"),
+    "skip_dbt": Param(False, type="boolean"),
+    "dbt_command": Param("run", type="string", enum=["run", "build", "test"]),
+    "full_refresh": Param(False, type="boolean"),
+    "threads": Param(int(os.environ.get("DBT_THREADS", "4")), type="integer", minimum=1, maximum=64),
+    "select_nodes": Param("", type="string"),
+    "skip_nodes": Param("", type="string"),
+    "exclude": Param("", type="string"),
+    "dbt_vars": Param("", type="string"),
+    "fail_fast": Param(False, type="boolean"),
+}
+
+with DAG(
+    dag_id="DATABRICKS_END_TO_END",
+    description="Source systems -> Databricks landing -> dbt (bronze/silver/gold), end to end",
+    doc_md=__doc__,
+    start_date=pendulum.datetime(2025, 9, 1, tz="America/Chicago"),
+    schedule=SCHEDULE,
+    catchup=False,
+    max_active_runs=1,
+    params=PARAMS,
+    default_args={"owner": "data-platform", "retries": 0},
+    tags=["databricks", "end_to_end", "dbt_databricks"],
+) as dag:
+
+    @task(task_id="check_databricks", retries=1, retry_delay=timedelta(minutes=2))
+    def check_databricks():
+        """Cheap connectivity test (SELECT 1 on the SQL warehouse) before launching anything long-running."""
+        from include.Python.dbt_databricks_common import env_from_connection
+
+        env = {k: os.environ.get(k) for k in C.CONNECTION_BACKED_ENV}
+        if not all(env.values()):
+            env.update({k: v for k, v in env_from_connection().items() if not env.get(k)})
+        if not all(env.values()):
+            raise AirflowFailException(
+                "No Databricks credentials: set DATABRICKS_HOST / DATABRICKS_HTTP_PATH / DATABRICKS_TOKEN "
+                f"or configure the Airflow connection '{C.DATABRICKS_CONN_ID}'."
+            )
+        from databricks import sql
+
+        with sql.connect(server_hostname=env["DATABRICKS_HOST"], http_path=env["DATABRICKS_HTTP_PATH"],
+                         access_token=env["DATABRICKS_TOKEN"]) as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            assert cur.fetchone()[0] == 1
+        print("Databricks SQL warehouse reachable")
+
+    @task(task_id="plan_ingestion", retries=0)
+    def plan_ingestion(**context):
+        """Turn the `sources` param into one DATABRICKS_SOURCE_INGESTION conf per extract config."""
+        p = context["params"]
+        if p.get("skip_ingestion"):
+            print("skip_ingestion=true: nothing to ingest")
+            return []
+        from include.Python.databricks_ingestion import discover_config_files, classify
+
+        available = discover_config_files()
+        wanted = [s.strip() for s in str(p.get("sources") or "").split(",") if s.strip()]
+        if not wanted:
+            chosen = available
+        else:
+            chosen, unknown = [], []
+            for w in wanted:
+                name = w.split(":")[-1].lower()  # accepts 'SUPPLIER', 'sqlserver:SUPPLIER' or a file name
+                hits = [f for f in available if f.lower() == w.lower() or classify(f)[1].lower() == name]
+                if hits:
+                    chosen.extend(hits)
+                else:
+                    unknown.append(w)
+            if unknown:
+                raise AirflowFailException(f"Unknown source(s): {unknown}. Available: {[classify(f)[1] for f in available]}")
+        confs = [{"config_filename": f, "tables": "", "run_dbt": False, "dbt_command": p.get("dbt_command", "run"),
+                  "check_landing_tables": True, "fail_on_empty_load": False} for f in dict.fromkeys(chosen)]
+        print(f"Ingesting {len(confs)} source(s): {[c['config_filename'] for c in confs]}")
+        return confs
+
+    ingest_states = ["success", "failed"] if CONTINUE_ON_INGESTION_FAILURE else ["success"]
+    ingest = TriggerDagRunOperator.partial(
+        task_id="ingest_source",
+        trigger_dag_id="DATABRICKS_SOURCE_INGESTION",
+        trigger_run_id="e2e_{{ run_id }}_{{ ti.map_index }}",
+        reset_dag_run=True,
+        wait_for_completion=True,
+        poke_interval=60,
+        allowed_states=ingest_states,
+        failed_states=[] if CONTINUE_ON_INGESTION_FAILURE else ["failed"],
+        max_active_tis_per_dag=INGEST_PARALLEL_SOURCES,
+    )
+
+    @task.short_circuit(task_id="dbt_wanted", trigger_rule=TriggerRule.NONE_FAILED)
+    def dbt_wanted(**context):
+        wanted = not context["params"].get("skip_dbt")
+        print("running dbt stage" if wanted else "skip_dbt=true: dbt stage skipped")
+        return wanted
+
+    @task(task_id="pipeline_conf", retries=0)
+    def pipeline_conf(**context):
+        p = context["params"]
+        keys = ("dbt_command", "full_refresh", "threads", "select_nodes", "skip_nodes", "exclude", "dbt_vars", "fail_fast")
+        return {k: p[k] for k in keys if k in p}
+
+    run_dbt = TriggerDagRunOperator(
+        task_id="run_dbt_pipeline",
+        trigger_dag_id="DBT_DATABRICKS_PIPELINE",
+        trigger_run_id="e2e_{{ run_id }}",
+        reset_dag_run=True,
+        wait_for_completion=True,
+        poke_interval=120,
+        conf=pipeline_conf(),
+        trigger_rule=TriggerRule.NONE_FAILED,
+    )
+
+    ingest_stage = ingest.expand(conf=plan_ingestion())
+    check_databricks() >> ingest_stage
+    ingest_stage >> dbt_wanted() >> run_dbt
+
+####################################################################################################
+##### FILE: include/Python/dbt_databricks_common.py   (349 lines)
+####################################################################################################
+"""
+Shared helpers for the dbt_databricks Airflow DAGs.
+
+Used by:
+    dags/DBT_DATABRICKS_PIPELINE.py       full dependency-ordered dbt run
+    dags/DBT_DATABRICKS_EXECUTION.py      ad-hoc / selector-driven dbt run
+    dags/DATABRICKS_SOURCE_INGESTION.py   source system -> Databricks landing
+    dags/DATABRICKS_END_TO_END.py         ingestion -> dbt orchestrator
+
+Design notes
+------------
+* The DAG structure comes from include/Configuration/dbt_databricks_graph.json,
+  which is generated from dbt's manifest by generate_dbt_databricks_graph.py.
+  The full manifest is ~170 MB, so it must never be read at DAG-parse time.
+* Each pipeline task runs ONE dbt invocation for one "node" (a domain/layer
+  slice such as tea_service/bronze). dbt itself orders the models inside the
+  slice; Airflow orders the slices using the edges taken from the dbt graph.
+* Everything user-controlled (selectors, vars, flags) reaches the shell through
+  environment variables, never by string-formatting into the command, so the
+  shell script below is a constant.
+* dbt runs in the existing `dbt_venv` (see Dockerfile) on the Airflow worker and
+  sends SQL to the Databricks SQL warehouse configured in the profiles.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Iterable
+
+# --------------------------------------------------------------------------- locations
+_PYTHON_DIR = Path(__file__).resolve().parent                # .../include/Python
+_ASTRO_ROOT = _PYTHON_DIR.parents[1]                           # .../astro_datautility
+
+DBT_PROJECT_DIR = os.environ.get(
+    "DBT_DATABRICKS_PROJECT_DIR", str(_ASTRO_ROOT / "dags" / "dbt" / "dbt_databricks")
+)
+GRAPH_PATH = os.environ.get(
+    "DBT_DATABRICKS_GRAPH_PATH", str(_ASTRO_ROOT / "include" / "Configuration" / "dbt_databricks_graph.json")
+)
+CONFIG_DIR = os.environ.get("TEL_CONFIG_DIR", str(_ASTRO_ROOT / "include" / "Configuration"))
+DBT_VENV_ACTIVATE = os.environ.get(
+    "DBT_VENV_ACTIVATE", f"{os.environ.get('AIRFLOW_HOME', '/usr/local/airflow')}/dbt_venv/bin/activate"
+)
+
+DEPLOYMENT = os.environ.get("ASTRO_DEPLOYMENT_NAME", "DEV").strip().upper() or "DEV"
+IS_PROD = DEPLOYMENT == "PROD"
+
+# Connection used by provider operators/hooks and as a fallback source for the
+# dbt credentials (host / http_path / token) when the env vars are not set.
+DATABRICKS_CONN_ID = os.environ.get("DBT_DATABRICKS_CONN_ID", "databricks_default")
+
+# Adapter-internal dbt packages. A root project with one of these names fails
+# at parse time ("found more than one package with the name ...").
+ADAPTER_PACKAGE_NAMES = {"dbt_databricks", "dbt_spark"}
+
+# Required by dbt parsing even when selecting one domain (see dbt_databricks/README.md).
+REQUIRED_DBT_ENV = (
+    "DATABRICKS_HOST",
+    "DATABRICKS_HTTP_PATH",
+    "DATABRICKS_TOKEN",
+    "DATABRICKS_CATALOG",
+    "DATABRICKS_LZ_CATALOG",
+    "DATABRICKS_LZ_HVR_CATALOG",
+    "DATABRICKS_BRONZE_CATALOG",
+    "DATABRICKS_SILVER_CATALOG",
+    "DATABRICKS_GOLD_CATALOG",
+    "DATABRICKS_ADMIN_CATALOG",
+    "DATABRICKS_PUB_CATALOG",
+    "DATABRICKS_ODS_CATALOG",
+    "DATABRICKS_SNOWFLAKE_ACCOUNT_USAGE_CATALOG",
+)
+# These three can be satisfied from the Airflow connection instead.
+CONNECTION_BACKED_ENV = ("DATABRICKS_HOST", "DATABRICKS_HTTP_PATH", "DATABRICKS_TOKEN")
+
+BUILTIN_MATERIALIZATIONS = {"table", "view", "incremental", "ephemeral", "materialized_view", "streaming_table", "seed", "snapshot"}
+
+_SELECTOR_OK = re.compile(r"^[A-Za-z0-9_.:+@,*/\-\[\]\s]*$")
+
+
+# --------------------------------------------------------------------------- project info
+def project_name(project_dir: str = DBT_PROJECT_DIR) -> str | None:
+    """`name:` from dbt_project.yml (read with a regex; the file is small and PyYAML is not needed)."""
+    try:
+        text = (Path(project_dir) / "dbt_project.yml").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"^name:\s*['\"]?([A-Za-z0-9_]+)['\"]?\s*$", text, re.M)
+    return m.group(1) if m else None
+
+
+def profiles_dir(project_dir: str = DBT_PROJECT_DIR, deployment: str = DEPLOYMENT) -> tuple[str, str | None]:
+    """
+    Returns (profiles_dir, target_override).
+
+    `<DEPLOYMENT>_PROFILES/` (DEV_PROFILES, QA_PROFILES, SIT_PROFILES, PROD_PROFILES)
+    each carry their own default target, so no override is needed. If the
+    folder is missing, fall back to the root profiles.yml, which selects its
+    target from ASTRO_DEPLOYMENT_NAME (dev/qa/prod only).
+    """
+    candidate = Path(project_dir) / f"{deployment}_PROFILES"
+    if candidate.is_dir():
+        return str(candidate), None
+    return str(project_dir), deployment.lower()
+
+
+# --------------------------------------------------------------------------- graph
+@lru_cache(maxsize=1)
+def load_graph(path: str = GRAPH_PATH) -> dict[str, Any]:
+    """Load and validate the pre-computed dbt dependency graph."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            graph = json.load(fh)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"dbt graph file not found: {path}. Generate it with "
+            f"`python include/Python/generate_dbt_databricks_graph.py --parse` and deploy it with the DAGs."
+        ) from exc
+
+    if graph.get("schema_version") != 1:
+        raise ValueError(f"Unsupported graph schema_version: {graph.get('schema_version')}")
+
+    ids = [n["id"] for n in graph["nodes"]]
+    if len(ids) != len(set(ids)):
+        raise ValueError("Duplicate node ids in dbt graph file")
+    known = set(ids)
+    for up, down in graph["edges"]:
+        if up not in known or down not in known:
+            raise ValueError(f"Edge references unknown node: {up} -> {down}")
+    assert_acyclic(ids, graph["edges"])
+    return graph
+
+
+def assert_acyclic(ids: Iterable[str], edges: Iterable[Iterable[str]]) -> None:
+    """Kahn's algorithm; raises ValueError naming the nodes stuck in a cycle."""
+    ids = list(ids)
+    indeg = {i: 0 for i in ids}
+    adj: dict[str, list[str]] = {i: [] for i in ids}
+    for up, down in edges:
+        adj[up].append(down)
+        indeg[down] += 1
+    ready = [i for i, d in indeg.items() if d == 0]
+    seen = 0
+    while ready:
+        cur = ready.pop()
+        seen += 1
+        for nxt in adj[cur]:
+            indeg[nxt] -= 1
+            if indeg[nxt] == 0:
+                ready.append(nxt)
+    if seen != len(ids):
+        stuck = sorted(i for i, d in indeg.items() if d > 0)
+        raise ValueError(f"Cycle in dbt task graph involving: {stuck[:10]}")
+
+
+# --------------------------------------------------------------------------- fingerprints & static checks
+_REF_RE = re.compile(r"""\bref\(\s*(?:['"][^'"]+['"]\s*,\s*)?['"]([^'"]+)['"]""")
+_SRC_RE = re.compile(r"""\bsource\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]""")
+_MAT_RE = re.compile(r"""materialized\s*=\s*['"]([A-Za-z0-9_]+)['"]""")
+_MATERIALIZATION_DEF_RE = re.compile(r"""\{%-?\s*materialization\s+([A-Za-z0-9_]+)\s*,""")
+
+
+def _model_files(project_dir: str) -> list[Path]:
+    root = Path(project_dir) / "models"
+    return sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".sql")
+
+
+def dependency_fingerprint(project_dir: str = DBT_PROJECT_DIR) -> str:
+    """
+    Hash of every model file path plus the ref()/source() calls inside it.
+
+    This is what the dependency graph is derived from, so if it changes the
+    committed graph JSON is stale. Whitespace/formatting edits and ordinary SQL
+    changes do NOT change it. (Refs produced by macros are not visible here;
+    dbt still orders models correctly inside a task, only cross-task ordering
+    could be affected.)
+    """
+    h = hashlib.sha1()
+    base = Path(project_dir)
+    for f in _model_files(project_dir):
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        refs = sorted(set(_REF_RE.findall(text)))
+        srcs = sorted({f"{a}.{b}" for a, b in _SRC_RE.findall(text)})
+        h.update(f"{f.relative_to(base).as_posix().lower()}|{','.join(refs)}|{','.join(srcs)}\n".encode())
+    return h.hexdigest()
+
+
+def unresolved_materializations(project_dir: str = DBT_PROJECT_DIR) -> dict[str, int]:
+    """
+    Materializations named in model configs that are neither dbt built-ins nor
+    defined as a `{% materialization name, adapter='...' %}` macro in the
+    project or its installed packages. Returns {name: model_count}.
+    """
+    defined = set(BUILTIN_MATERIALIZATIONS)
+    for sub in ("macros", "dbt_packages", "dbt_internal_packages"):
+        root = Path(project_dir) / sub
+        if root.is_dir():
+            for f in root.rglob("*.sql"):
+                try:
+                    defined.update(_MATERIALIZATION_DEF_RE.findall(f.read_text(encoding="utf-8", errors="ignore")))
+                except OSError:
+                    continue
+    counts: dict[str, int] = {}
+    for f in _model_files(project_dir):
+        for name in set(_MAT_RE.findall(f.read_text(encoding="utf-8", errors="ignore"))):
+            if name not in defined:
+                counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+# --------------------------------------------------------------------------- runtime env
+def missing_dbt_env(environ: dict[str, str] | None = None, allow_connection: bool = True) -> list[str]:
+    environ = os.environ if environ is None else environ
+    missing = [k for k in REQUIRED_DBT_ENV if not environ.get(k)]
+    if allow_connection:
+        missing = [k for k in missing if k not in CONNECTION_BACKED_ENV]
+        if any(not environ.get(k) for k in CONNECTION_BACKED_ENV):
+            # verify the connection can actually supply them
+            try:
+                supplied = env_from_connection()
+            except Exception:  # noqa: BLE001 - connection absent is a normal "missing" case
+                supplied = {}
+            missing += [k for k in CONNECTION_BACKED_ENV if not environ.get(k) and not supplied.get(k)]
+    return missing
+
+
+def env_from_connection(conn_id: str = DATABRICKS_CONN_ID) -> dict[str, str]:
+    """
+    DATABRICKS_HOST / HTTP_PATH / TOKEN derived from an Airflow Databricks
+    connection (host, extra.http_path, password or extra.token). Only called
+    at task run time.
+    """
+    try:
+        from airflow.sdk import Connection  # Airflow 3
+        conn = Connection.get(conn_id)
+    except ImportError:  # Airflow 2
+        from airflow.hooks.base import BaseHook
+        conn = BaseHook.get_connection(conn_id)
+
+    extra = conn.extra_dejson if hasattr(conn, "extra_dejson") else json.loads(conn.extra or "{}")
+    host = (conn.host or "").replace("https://", "").replace("http://", "").strip("/")
+    out = {
+        "DATABRICKS_HOST": host,
+        "DATABRICKS_HTTP_PATH": extra.get("http_path", ""),
+        "DATABRICKS_TOKEN": conn.password or extra.get("token", ""),
+    }
+    return {k: v for k, v in out.items() if v}
+
+
+def validate_selector(value: str, label: str = "selector") -> str:
+    value = (value or "").strip()
+    if not _SELECTOR_OK.match(value):
+        raise ValueError(f"Unsupported characters in dbt {label}: {value!r}")
+    return value
+
+
+def run_key(*parts: str) -> str:
+    """Filesystem-safe key for per-task dbt target/log directories."""
+    return "/".join(re.sub(r"[^A-Za-z0-9_.-]+", "_", p or "x") for p in parts)
+
+
+# --------------------------------------------------------------------------- shell script
+# Constant on purpose: all dynamic input arrives via TEL_* / DBT_* env vars.
+DBT_SHELL_SCRIPT = r"""
+set -euo pipefail
+set -f                                   # selectors contain '*'/'+': never glob them
+
+# shellcheck disable=SC1090
+source "${DBT_VENV_ACTIVATE}"
+cd "${DBT_PROJECT_DIR}"
+
+RUN_ROOT="${DBT_RUN_ROOT:-/tmp/dbt_databricks_runs}"
+PP_DIR="${DBT_PARTIAL_PARSE_DIR:-/tmp/dbt_databricks_partial_parse}/${TEL_DEPLOYMENT}"
+mkdir -p "${RUN_ROOT}" "${PP_DIR}" "${RUN_ROOT}/${TEL_RUN_KEY}/target" "${RUN_ROOT}/${TEL_RUN_KEY}/logs"
+
+# One directory per task (not per try) so `dbt retry` can find run_results.json.
+export DBT_TARGET_PATH="${RUN_ROOT}/${TEL_RUN_KEY}/target"
+export DBT_LOG_PATH="${RUN_ROOT}/${TEL_RUN_KEY}/logs"
+export DBT_PROFILES_DIR="${TEL_PROFILES_DIR}"
+export DBT_SEND_ANONYMOUS_USAGE_STATS=false
+export DBT_USE_COLORS=false
+if [ -n "${TEL_DBT_TARGET:-}" ]; then export DBT_TARGET="${TEL_DBT_TARGET}"; fi
+
+# ---- 1. dbt packages: once per worker, serialised across concurrent tasks ----
+DEPS_STAMP="dbt_packages/.deps_ok_$({ cat packages.yml package-lock.yml 2>/dev/null || true; } | sha1sum | cut -c1-16)"
+(
+  flock 9
+  if [ ! -f "${DEPS_STAMP}" ]; then
+    echo "[dbt-databricks] installing dbt packages"
+    dbt deps
+    touch "${DEPS_STAMP}"
+  fi
+) 9>"${RUN_ROOT}/.deps.lock"
+
+# ---- 2. partial-parse cache: a cold parse of this project takes minutes ----
+# The cache lives per worker and is built once under a lock; later tasks reuse it.
+PP_FILE="${PP_DIR}/partial_parse.msgpack"
+(
+  flock 9
+  if [ ! -s "${PP_FILE}" ]; then
+    echo "[dbt-databricks] building partial-parse cache (first task on this worker)"
+    DBT_TARGET_PATH="${PP_DIR}" DBT_LOG_PATH="${PP_DIR}/logs" dbt parse
+  fi
+) 9>"${PP_DIR}/.lock"
+if [ -s "${PP_FILE}" ]; then export DBT_PARTIAL_PARSE_FILE_PATH="${PP_FILE}"; fi
+
+# ---- 3. result summary (also on failure) ----
+summarize() {
+  local rc=$?
+  if [ -f "${DBT_TARGET_PATH}/run_results.json" ]; then
+    python - "${DBT_TARGET_PATH}/run_results.json" <<'PY' || true
+import json, sys, collections
+res = json.load(open(sys.argv[1])).get("results", [])
+by = collections.Counter(r.get("status") for r in res)
+print("[dbt-databricks] result summary:", dict(by))
+bad = [r for r in res if r.get("status") in ("error", "fail")]
+for r in bad[:25]:
+    print("  FAILED", r.get("unique_id"), "-", (r.get("message") or "").replace("\n", " ")[:300])
+if len(bad) > 25:
+    print(f"  ... and {len(bad) - 25} more")
+PY
+  fi
+  find "${RUN_ROOT}" -mindepth 1 -maxdepth 1 -type d -mtime +2 -exec rm -rf {} + 2>/dev/null || true
+  return $rc
+}
+trap summarize EXIT
+
+# ---- 4. dbt invocation ----
+read -r -a SELECT <<< "${TEL_DBT_SELECT:-}"
+read -r -a EXCLUDE <<< "${TEL_DBT_EXCLUDE:-}"
+ARGS=(--threads "${TEL_DBT_THREADS:-4}")
+if [ -n "${TEL_DBT_EXCLUDE:-}" ]; then ARGS+=(--exclude "${EXCLUDE[@]}"); fi
+if [ "${TEL_DBT_FAIL_FAST:-false}" = "true" ]; then ARGS+=(--fail-fast); fi
+if [ "${TEL_DBT_FULL_REFRESH:-false}" = "true" ] && [ "${TEL_DBT_COMMAND}" != "test" ]; then ARGS+=(--full-refresh); fi
+if [ -n "${TEL_DBT_VARS:-}" ] && [ "${TEL_DBT_VARS}" != "{}" ]; then ARGS+=(--vars "${TEL_DBT_VARS}"); fi
+
+# On an Airflow retry, re-run only what failed/was skipped (state in run_results.json).
+if [ "${TEL_TRY_NUMBER:-1}" -gt 1 ] && [ "${TEL_USE_DBT_RETRY:-true}" = "true" ] \
+   && [ -f "${DBT_TARGET_PATH}/run_results.json" ]; then
+  echo "[dbt-databricks] retry attempt ${TEL_TRY_NUMBER}: dbt retry"
+  dbt retry --threads "${TEL_DBT_THREADS:-4}"
+else
+  echo "[dbt-databricks] dbt ${TEL_DBT_COMMAND} --select ${SELECT[*]} (threads=${TEL_DBT_THREADS:-4})"
+  dbt "${TEL_DBT_COMMAND}" --select "${SELECT[@]}" "${ARGS[@]}"
+fi
+"""
+
+####################################################################################################
+##### FILE: include/Python/dbt_databricks_operators.py   (142 lines)
+####################################################################################################
+"""
+Operators for running the dbt_databricks project from Airflow.
+
+DbtDatabricksBashOperator
+    Default execution mode. Runs dbt from the `dbt_venv` on the Airflow worker;
+    dbt sends SQL to the Databricks SQL warehouse (as described in the dbt
+    project README).
+
+build_databricks_job_operator()
+    Optional execution mode (DBT_EXECUTION_MODE=databricks_job). Submits the same
+    dbt command as a Databricks Jobs one-time run with a `dbt_task`.
+"""
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
+try:  # Airflow 3 / standard provider
+    from airflow.providers.standard.operators.bash import BashOperator
+except ImportError:  # Airflow 2
+    from airflow.operators.bash import BashOperator
+
+try:
+    from airflow.exceptions import AirflowSkipException
+except ImportError:  # pragma: no cover
+    from airflow.sdk.exceptions import AirflowSkipException
+
+from include.Python import dbt_databricks_common as C
+
+ALLOWED_COMMANDS = ("run", "build", "test")
+
+
+def csv_set(value: Any) -> set[str]:
+    """'a, b,,c' / ['a','b'] -> {'a','b','c'} (lower-cased)."""
+    if not value:
+        return set()
+    if isinstance(value, str):
+        value = value.split(",")
+    return {str(v).strip().lower() for v in value if str(v).strip()}
+
+
+def node_is_selected(node_id: str, domain: str, params: dict[str, Any]) -> bool:
+    """`select_nodes` (empty = all) and `skip_nodes` match on node id or domain."""
+    keys = {node_id.lower(), domain.lower()}
+    selected, skipped = csv_set(params.get("select_nodes")), csv_set(params.get("skip_nodes"))
+    if skipped & keys:
+        return False
+    return not selected or bool(selected & keys)
+
+
+def bool_param(value: Any) -> bool:
+    return str(value).strip().lower() in ("true", "1", "yes", "y")
+
+
+class DbtDatabricksBashOperator(BashOperator):
+    """
+    One dbt invocation (run / build / test) for a fixed or parameter-supplied selector.
+
+    dbt_node_id / dbt_domain : set for pipeline tasks; used by the `select_nodes` / `skip_nodes` params.
+    select           : fixed dbt selector (space separated), e.g. "path:models/tea_service/bronze".
+    select_param     : alternative: names of DAG params/conf keys to read the selector from.
+    """
+
+    ui_color = "#ffb199"
+    template_fields = ("select",)  # bash_command is a constant and is intentionally NOT templated
+
+    def __init__(
+        self,
+        *,
+        select: str | None = None,
+        select_param: tuple[str, ...] = (),
+        dbt_node_id: str | None = None,
+        dbt_domain: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        # Placeholder keeps BashOperator happy; the real script is set in execute()
+        # (after templating) so Jinja never sees the shell code.
+        kwargs.setdefault("do_xcom_push", False)  # don't store dbt's last stdout line as an XCom
+        super().__init__(bash_command="true", append_env=True, **kwargs)
+        self.select = select
+        self.select_param = select_param
+        self.dbt_node_id = dbt_node_id
+        self.dbt_domain = dbt_domain
+
+    def execute(self, context: Any) -> Any:
+        params = dict(context["params"])
+        ti = context["ti"]
+        # Existing DRIVER_* DAGs trigger with {"model_name": ...}; honour conf keys that are not declared params.
+        conf = getattr(context.get("dag_run"), "conf", None) or {}
+        for key in ("select", "model_name"):
+            if not params.get(key) and conf.get(key):
+                params[key] = conf[key]
+
+        if self.dbt_node_id and not node_is_selected(self.dbt_node_id, self.dbt_domain or "", params):
+            raise AirflowSkipException(f"{self.dbt_node_id} excluded by select_nodes/skip_nodes")
+
+        command = str(params.get("dbt_command") or "run").lower()
+        if command not in ALLOWED_COMMANDS:
+            raise ValueError(f"dbt_command must be one of {ALLOWED_COMMANDS}, got {command!r}")
+
+        select = self.select
+        if not select:
+            for key in self.select_param:
+                if params.get(key):
+                    select = str(params[key])
+                    break
+        if not select:
+            raise ValueError(f"No dbt selector supplied (looked at: {self.select_param or 'static select'})")
+        select = C.validate_selector(select, "select")
+        exclude = C.validate_selector(str(params.get("exclude") or ""), "exclude")
+        dbt_vars = str(params.get("dbt_vars") or "").strip()
+
+        profiles, target = C.profiles_dir()
+        env: dict[str, str] = {
+            "DBT_VENV_ACTIVATE": C.DBT_VENV_ACTIVATE,
+            "DBT_PROJECT_DIR": C.DBT_PROJECT_DIR,
+            "TEL_DEPLOYMENT": C.DEPLOYMENT,
+            "TEL_PROFILES_DIR": profiles,
+            "TEL_DBT_TARGET": target or "",
+            "TEL_RUN_KEY": C.run_key(context["dag"].dag_id, context["run_id"], ti.task_id),
+            "TEL_TRY_NUMBER": str(getattr(ti, "try_number", 1) or 1),
+            "TEL_DBT_COMMAND": command,
+            "TEL_DBT_SELECT": select,
+            "TEL_DBT_EXCLUDE": exclude,
+            "TEL_DBT_THREADS": str(int(params.get("threads") or 4)),
+            "TEL_DBT_FULL_REFRESH": "true" if bool_param(params.get("full_refresh")) else "false",
+            "TEL_DBT_FAIL_FAST": "true" if bool_param(params.get("fail_fast")) else "false",
+            "TEL_DBT_VARS": dbt_vars,
+            "TEL_USE_DBT_RETRY": "true" if bool_param(params.get("use_dbt_retry", True)) else "false",
+        }
+
+        # Fill any DATABRICKS_HOST / HTTP_PATH / TOKEN not already set on the worker
+        # from the Airflow connection. Existing env vars always win.
+        if any(not os.environ.get(k) for k in C.CONNECTION_BACKED_ENV):
+            for key, value in C.env_from_connection().items():
+                if not os.environ.get(key):
+                    env[key] = value
+
+        self.env = env
+        self.bash_command = C.DBT_SHELL_SCRIPT
+        return super().execute(context)
+
+####################################################################################################
+##### FILE: include/Python/dbt_databricks_job_operator.py   (146 lines)
+####################################################################################################
+"""
+Optional execution mode: run each dbt slice as a Databricks Jobs one-time run
+with a `dbt_task` (Jobs API 2.1 `runs/submit`), instead of running dbt on the
+Airflow worker.
+
+Enable with DBT_EXECUTION_MODE=databricks_job on the Airflow deployment and
+provide the job settings in include/Configuration/dbt_databricks_job.json (or the
+DBT_DATABRICKS_JOB_CONFIG env var holding the same JSON). See
+dbt_databricks_job.example.json for every key.
+
+IMPORTANT - what this mode needs on the Databricks side
+  * The dbt project must be reachable by the job through a Git source
+    (`git_source`); Databricks cannot run a dbt project from DBFS.
+  * The project reads its catalogs/credentials with env_var(). A job cluster
+    therefore needs them as `spark_env_vars`. Non-secret DATABRICKS_* values
+    present on the Airflow deployment are forwarded automatically; secrets
+    (DATABRICKS_TOKEN, ...) must be given as secret references such as
+    "{{secrets/<scope>/<key>}}" under `secret_env_vars` in the job config.
+  * Use a custom profile (`profiles_directory`, e.g. PROD_PROFILES) so the
+    project's own profile - which uses those env vars - is what dbt reads.
+
+This mode is NOT exercised by the default setup and has not been run against a
+live workspace; validate it in DEV first. The default `airflow_cli` mode follows
+the dbt project README and is the supported path.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from airflow.exceptions import AirflowSkipException
+from airflow.providers.databricks.operators.databricks import DatabricksSubmitRunOperator
+
+from include.Python import dbt_databricks_common as C
+from include.Python.dbt_databricks_operators import node_is_selected
+
+JOB_CONFIG_PATH = os.environ.get(
+    "DBT_DATABRICKS_JOB_CONFIG_PATH", str(Path(C.CONFIG_DIR) / "dbt_databricks_job.json")
+)
+# Never forwarded as plain spark_env_vars (per-user / service-principal secrets).
+_NEVER_FORWARD = {"DATABRICKS_TOKEN", "DATABRICKS_DEV_CLIENT", "DATABRICKS_DEV_SECRET"}
+
+
+def load_job_config() -> dict[str, Any]:
+    raw = os.environ.get("DBT_DATABRICKS_JOB_CONFIG")
+    if raw:
+        cfg = json.loads(raw)
+    else:
+        try:
+            cfg = json.loads(Path(JOB_CONFIG_PATH).read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(
+                f"DBT_EXECUTION_MODE=databricks_job needs a job config: {JOB_CONFIG_PATH} "
+                f"(or env DBT_DATABRICKS_JOB_CONFIG). See dbt_databricks_job.example.json."
+            ) from exc
+    for key in ("git_source", "project_directory", "job_cluster"):
+        if not cfg.get(key):
+            raise ValueError(f"dbt_databricks_job config is missing required key: {key}")
+    return cfg
+
+
+def _spark_env_vars(cfg: dict[str, Any]) -> dict[str, str]:
+    env = {
+        k: v for k, v in os.environ.items()
+        if k.startswith(("DATABRICKS_", "DBT_THREADS", "DBT_UPLOAD_ARTIFACTS")) and k not in _NEVER_FORWARD and v
+    }
+    env.update(cfg.get("spark_env_vars", {}))
+    env.update(cfg.get("secret_env_vars", {}))
+    env["ASTRO_DEPLOYMENT_NAME"] = C.DEPLOYMENT
+    return env
+
+
+def _raw(value: Any) -> Any:
+    """Protect config-derived strings from Jinja.
+
+    The operator's `json` field is templated, but Databricks secret references look like
+    `{{secrets/<scope>/<key>}}` - the same braces Jinja uses. Without this they would fail to render
+    (or silently become empty). Only the dbt command line is meant to be templated.
+    """
+    if isinstance(value, str):
+        return "{% raw %}" + value + "{% endraw %}" if ("{{" in value or "{%" in value or "{#" in value) else value
+    if isinstance(value, dict):
+        return {k: _raw(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_raw(v) for v in value]
+    return value
+
+
+class DbtDatabricksJobOperator(DatabricksSubmitRunOperator):
+    """DatabricksSubmitRunOperator that honours select_nodes/skip_nodes and builds the dbt_task payload."""
+
+    def __init__(self, *, dbt_node_id: str | None, dbt_domain: str | None, select: str, job_config: dict[str, Any], **kwargs: Any):
+        C.validate_selector(select, "select")
+        cfg = job_config
+        # profiles_directory in the job is repo-relative: <project_directory>/<DEPLOYMENT>_PROFILES
+        profiles_directory = cfg.get("profiles_directory") or f"{cfg['project_directory'].rstrip('/')}/{C.DEPLOYMENT}_PROFILES"
+
+        # dbt commands are templated so DAG params (dbt_command, threads, full_refresh) apply per run.
+        run_cmd = (
+            "dbt {{ params.dbt_command }} --select " + select +
+            " --threads {{ params.threads }}"
+            "{% if params.full_refresh %} --full-refresh{% endif %}"
+            "{% if params.fail_fast %} --fail-fast{% endif %}"
+            "{% if params.exclude %} --exclude {{ params.exclude }}{% endif %}"
+        )
+        dbt_task: dict[str, Any] = {
+            "project_directory": cfg["project_directory"],
+            "profiles_directory": profiles_directory,
+            "commands": ["dbt deps", run_cmd],
+            "source": "GIT",
+        }
+        if cfg.get("warehouse_id"):
+            dbt_task["warehouse_id"] = cfg["warehouse_id"]
+
+        cluster = dict(cfg["job_cluster"])
+        cluster["spark_env_vars"] = {**cluster.get("spark_env_vars", {}), **_spark_env_vars(cfg)}
+        cluster = _raw(cluster)
+
+        payload = {
+            "run_name": f"airflow-dbt-{dbt_node_id or 'adhoc'}",
+            "git_source": _raw(cfg["git_source"]),
+            "timeout_seconds": int(cfg.get("timeout_seconds", 21600)),
+            "tasks": [
+                {
+                    "task_key": (dbt_node_id or "adhoc").replace(".", "_")[:100],
+                    "dbt_task": dbt_task,
+                    "new_cluster": cluster,
+                    "libraries": [{"pypi": {"package": cfg.get("dbt_pip_spec", "dbt-databricks>=1.7.17,<1.8")}}],
+                }
+            ],
+        }
+        super().__init__(
+            json=payload,
+            databricks_conn_id=C.DATABRICKS_CONN_ID,
+            polling_period_seconds=int(cfg.get("polling_period_seconds", 30)),
+            databricks_retry_limit=3,
+            **kwargs,
+        )
+        self.dbt_node_id = dbt_node_id
+        self.dbt_domain = dbt_domain
+
+    def pre_execute(self, context: Any) -> None:
+        if self.dbt_node_id and not node_is_selected(self.dbt_node_id, self.dbt_domain or "", dict(context["params"])):
+            raise AirflowSkipException(f"{self.dbt_node_id} excluded by select_nodes/skip_nodes")
+
+####################################################################################################
+##### FILE: include/Python/dbt_databricks_preflight.py   (156 lines)
+####################################################################################################
+"""
+Pre-flight checks run as the first task of the dbt DAGs.
+
+Purpose: fail in seconds with an actionable message instead of letting ~100
+dbt tasks fail one by one. Each check returns (level, message); level is
+"error" (stops the run) or "warn".
+
+Checks
+  project     dbt project folder, profiles folder, dbt_venv present
+  name        project `name:` must not equal an adapter package name (dbt aborts at parse)
+  env         required DATABRICKS_* variables (or an Airflow connection supplying host/path/token)
+  graph       committed dependency graph matches the project's ref()/source() calls
+  materialize every `materialized=` used by models is a dbt built-in or defined as a macro
+  connection  `dbt debug` reaches the Databricks SQL warehouse
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import subprocess
+from pathlib import Path
+from typing import Any
+
+from include.Python import dbt_databricks_common as C
+
+log = logging.getLogger("airflow.task")
+
+Finding = tuple[str, str]  # (level, message)
+
+
+def _truthy(v: Any) -> bool:
+    return str(v).strip().lower() in ("true", "1", "yes", "y")
+
+
+def run_in_dbt_venv(cmd: str, extra_env: dict[str, str] | None = None, timeout: int = 180) -> subprocess.CompletedProcess:
+    """Run a command with the dbt venv activated, inside the dbt project directory."""
+    env = {**os.environ, **(extra_env or {})}
+    env["DBT_VENV_ACTIVATE"] = C.DBT_VENV_ACTIVATE
+    env["DBT_PROJECT_DIR"] = C.DBT_PROJECT_DIR
+    return subprocess.run(
+        ["bash", "-c", f'source "$DBT_VENV_ACTIVATE" && cd "$DBT_PROJECT_DIR" && {cmd}'],
+        env=env, capture_output=True, text=True, timeout=timeout,
+    )
+
+
+def check_project() -> list[Finding]:
+    out: list[Finding] = []
+    proj = Path(C.DBT_PROJECT_DIR)
+    if not (proj / "dbt_project.yml").is_file():
+        return [("error", f"dbt project not found at {proj} (set DBT_DATABRICKS_PROJECT_DIR)")]
+    pdir, _ = C.profiles_dir()
+    if not (Path(pdir) / "profiles.yml").is_file():
+        out.append(("error", f"profiles.yml not found in {pdir}"))
+    if not Path(C.DBT_VENV_ACTIVATE).is_file():
+        out.append(("error", f"dbt virtualenv not found: {C.DBT_VENV_ACTIVATE} (see Dockerfile: dbt_venv)"))
+    return out
+
+
+def check_project_name() -> list[Finding]:
+    name = C.project_name()
+    if name in C.ADAPTER_PACKAGE_NAMES:
+        return [("error",
+                 f"dbt_project.yml `name: {name}` collides with the dbt-databricks adapter's own package of the same "
+                 f"name, so every dbt command aborts with 'found more than one package with the name \"{name}\"' "
+                 f"(reproduced on dbt-core 1.7.1, 1.9 and 1.11). Rename the project, e.g. `name: dbt_databricks_proj`, "
+                 f"and rename the matching `models:` key in dbt_project.yml (keep `profile: dbt_databricks`). "
+                 f"A ready-made patch is in patches/dbt_project_rename.patch.")]
+    return []
+
+
+def check_env() -> list[Finding]:
+    missing = C.missing_dbt_env()
+    if missing:
+        return [("error", "Missing required environment variables: " + ", ".join(missing) +
+                 f" (DATABRICKS_HOST/HTTP_PATH/TOKEN may instead come from Airflow connection '{C.DATABRICKS_CONN_ID}')")]
+    return []
+
+
+def check_graph(strict: bool) -> list[Finding]:
+    try:
+        graph = C.load_graph()
+    except Exception as exc:  # noqa: BLE001
+        return [("error", f"dbt graph file problem: {exc}")]
+    current = C.dependency_fingerprint()
+    if current != graph.get("dependency_fingerprint"):
+        msg = ("The committed dbt dependency graph is STALE: model files or their ref()/source() calls changed since it "
+               "was generated (generated_at=%s). Regenerate with `python include/Python/generate_dbt_databricks_graph.py "
+               "--parse` and redeploy. Until then cross-domain ordering may be wrong." % graph.get("generated_at"))
+        return [("error" if strict else "warn", msg)]
+    return []
+
+
+def check_materializations() -> list[Finding]:
+    bad = C.unresolved_materializations()
+    if not bad:
+        return []
+    detail = ", ".join(f"'{k}' ({v} models)" for k, v in sorted(bad.items(), key=lambda kv: -kv[1]))
+    return [("error",
+             f"Models use materializations that do not exist for Databricks: {detail}. dbt would fail each of these "
+             f"models at run time. Convert the models to a dbt-databricks materialization (e.g. incremental with "
+             f"merge/insert_overwrite) or define the materialization macro. (The dbt project README notes the "
+             f"Snowflake-specific materialization was removed and the SQL is not yet converted.)")]
+
+
+def check_connection() -> list[Finding]:
+    pdir, target = C.profiles_dir()
+    extra = {"DBT_PROFILES_DIR": pdir}
+    if target:
+        extra["DBT_TARGET"] = target
+    extra.update({k: v for k, v in _connection_env().items() if not os.environ.get(k)})
+    try:
+        res = run_in_dbt_venv("dbt debug", extra, timeout=240)
+    except subprocess.TimeoutExpired:
+        return [("error", "`dbt debug` timed out after 240s (is the SQL warehouse starting up, or the network blocked?)")]
+    text = (res.stdout or "") + (res.stderr or "")
+    if res.returncode != 0 or "All checks passed" not in text:
+        tail = "\n".join(text.strip().splitlines()[-25:])
+        return [("error", f"`dbt debug` failed (exit {res.returncode}):\n{tail}")]
+    return []
+
+
+def _connection_env() -> dict[str, str]:
+    try:
+        return C.env_from_connection()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def run_preflight(params: dict[str, Any], *, check_graph_file: bool = True) -> dict[str, Any]:
+    """Run all checks; raise on errors. Returns a small summary for XCom."""
+    if _truthy(params.get("skip_preflight")):
+        log.warning("skip_preflight=true: pre-flight checks were NOT run")
+        return {"skipped": True}
+
+    findings: list[Finding] = []
+    findings += check_project()
+    if not any(level == "error" for level, _ in findings):
+        findings += check_project_name()
+        findings += check_env()
+        if check_graph_file:
+            findings += check_graph(strict=_truthy(params.get("strict_graph_check", True)))
+        findings += check_materializations()
+    if not any(level == "error" for level, _ in findings):
+        findings += check_connection()  # only worth the round trip if everything else is sane
+
+    for level, msg in findings:
+        (log.error if level == "error" else log.warning)("[preflight:%s] %s", level, msg)
+    errors = [m for level, m in findings if level == "error"]
+    if errors:
+        from airflow.exceptions import AirflowFailException
+        raise AirflowFailException(
+            f"Pre-flight failed with {len(errors)} problem(s). Fix them, or re-run with skip_preflight=true "
+            f"to bypass (not recommended).\n\n" + "\n\n".join(f"- {m}" for m in errors)
+        )
+    return {"skipped": False, "warnings": [m for level, m in findings if level == "warn"]}
+
+####################################################################################################
+##### FILE: include/Python/dbt_databricks_airflow_compat.py   (27 lines)
+####################################################################################################
+"""Airflow 3 (Astro Runtime 3.x, per the repo Dockerfile) imports with Airflow 2 fallbacks."""
+from __future__ import annotations
+
+try:  # Airflow 3
+    from airflow.sdk import DAG, Param, TaskGroup, get_current_context, task
+except ImportError:  # Airflow 2.x
+    from airflow import DAG
+    from airflow.decorators import task
+    from airflow.models.param import Param
+    from airflow.operators.python import get_current_context
+    from airflow.utils.task_group import TaskGroup
+
+try:
+    from airflow.providers.standard.operators.empty import EmptyOperator
+    from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+except ImportError:
+    from airflow.operators.empty import EmptyOperator
+    from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
+from airflow.exceptions import AirflowFailException, AirflowSkipException
+from airflow.utils.trigger_rule import TriggerRule
+
+__all__ = [
+    "DAG", "Param", "TaskGroup", "task", "get_current_context",
+    "EmptyOperator", "TriggerDagRunOperator", "TriggerRule",
+    "AirflowFailException", "AirflowSkipException",
+]
+
+####################################################################################################
+##### FILE: include/Python/databricks_ingestion.py   (213 lines)
+####################################################################################################
+"""
+Source-system -> Databricks landing helpers used by DATABRICKS_SOURCE_INGESTION.
+
+The extraction + load itself is done by the EXISTING extractors, unchanged:
+
+    include/Python/TelTools_SQLServer.py   main(config_file, table)
+    include/Python/TelTools_Oracle.py      main(config_file, table)
+
+Those read the source (SQL Server / Oracle), page it in chunks and write it to the
+landing table through TELTools.putSnowflakeDataFrame, which routes to
+include/Python/databricks_teltools.py (parquet -> UC Volume -> INSERT ... SELECT)
+and records each run in <LZ catalog>.<SCHEMA>.CONTROLTABLE.
+
+What this module adds around them:
+    plan_ingestion      which tables a config file loads, and which dbt selector depends on them
+    check_landing       fail fast if the landing schema / tables / CONTROLTABLE do not exist
+                        (the loader never auto-creates tables)
+    extract_one         the call into the right extractor
+    validate_load       confirm every table wrote a CONTROLTABLE row during this run
+
+Connection settings for the load are the existing ones (DATABRICKS_DEV_HOST,
+DATABRICKS_DEV_HTTP_PATH, DATABRICKS_DEV_CLIENT, DATABRICKS_DEV_SECRET, and
+SNOWFLAKE_LZ for the landing catalog name) - see databricks_teltools.py.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import json
+import logging
+import os
+import re
+from pathlib import Path
+from typing import Any
+
+from include.Python import dbt_databricks_common as C
+
+log = logging.getLogger("airflow.task")
+
+LOADER_ENV = ("DATABRICKS_DEV_HOST", "DATABRICKS_DEV_HTTP_PATH", "DATABRICKS_DEV_CLIENT", "DATABRICKS_DEV_SECRET", "SNOWFLAKE_LZ")
+_EXTRACTOR_PATTERNS = (
+    ("sqlserver", re.compile(r"^TelTools_SQLServer_(.+)_Extract\.json$")),
+    ("oracle", re.compile(r"^TelTools_Oracle_(.+)_Extract\.json$")),
+)
+
+
+def discover_config_files(config_dir: str = C.CONFIG_DIR) -> list[str]:
+    """File names of every SQL Server / Oracle extract config present."""
+    try:
+        names = sorted(os.listdir(config_dir))
+    except FileNotFoundError:
+        return []
+    return [n for n in names if any(p.match(n) for _, p in _EXTRACTOR_PATTERNS)]
+
+
+def classify(config_filename: str) -> tuple[str, str]:
+    """(kind, server_name) for a config file name; raises for unsupported files."""
+    base = os.path.basename(config_filename)
+    for kind, pattern in _EXTRACTOR_PATTERNS:
+        m = pattern.match(base)
+        if m:
+            return kind, m.group(1)
+    raise ValueError(
+        f"Unsupported extract config {config_filename!r}. Expected TelTools_SQLServer_<name>_Extract.json "
+        f"or TelTools_Oracle_<name>_Extract.json"
+    )
+
+
+def _csv(value: Any) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        value = value.split(",")
+    return [str(v).strip() for v in value if str(v).strip()]
+
+
+def plan_ingestion(config_filename: str, tables: Any = "") -> dict[str, Any]:
+    """Resolve what one ingestion run will load. JSON-serialisable (goes through XCom)."""
+    config_filename = os.path.basename(config_filename or "")
+    if not config_filename:
+        raise ValueError("config_filename is required")
+    kind, server = classify(config_filename)
+    path = Path(C.CONFIG_DIR) / config_filename
+    if not path.is_file():
+        raise FileNotFoundError(f"Extract config not found: {path}")
+
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
+    datasets = [
+        {"table": v["table"], "landing_table": v["sftablename"]}
+        for ds in data.values() if isinstance(ds, dict)
+        for k, v in ds.items() if k.startswith("DataSet") and isinstance(v, dict)
+    ]
+    requested = _csv(tables)
+    if requested:
+        known = {d["table"].lower() for d in datasets}
+        unknown = [t for t in requested if t.lower() not in known]
+        if unknown:
+            raise ValueError(f"Tables not in {config_filename}: {unknown}")
+        wanted = {t.lower() for t in requested}
+        datasets = [d for d in datasets if d["table"].lower() in wanted]
+    if not datasets:
+        raise ValueError(f"No datasets found in {config_filename}")
+
+    # same derivation the extractors use for the landing schema
+    landing_schema = server.upper().split("-")[0] if kind == "sqlserver" else server.upper()
+
+    dbt_select = ""
+    try:
+        for ex in C.load_graph().get("extractors", []):
+            if ex["config_filename"] == config_filename:
+                dbt_select = ex.get("dbt_select", "")
+                break
+    except Exception as exc:  # noqa: BLE001 - graph is optional for ingestion
+        log.warning("dbt graph unavailable, downstream dbt selector left empty: %s", exc)
+
+    return {
+        "config_filename": config_filename,
+        "kind": kind,
+        "server": server,
+        "landing_schema": landing_schema,
+        "datasets": datasets,
+        "tables": [d["table"] for d in datasets],
+        "dbt_select": dbt_select,
+        "run_start": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"),  # same clock/format the extractors stamp RUN_TIME with
+    }
+
+
+def _require_loader_env() -> None:
+    missing = [k for k in LOADER_ENV if not os.environ.get(k)]
+    if missing:
+        raise RuntimeError(
+            "Databricks loader environment is incomplete, missing: " + ", ".join(missing) +
+            ". These are the variables include/Python/databricks_teltools.py reads."
+        )
+
+
+def _landing_connection(schema: str):
+    from include.Python import databricks_teltools as D
+    return D, D._open(os.environ["SNOWFLAKE_LZ"], schema)
+
+
+def check_landing(plan: dict[str, Any]) -> dict[str, Any]:
+    """Verify the landing schema, every target table and CONTROLTABLE exist before extracting anything."""
+    _require_loader_env()
+    D, conn = _landing_connection(plan["landing_schema"])
+    try:
+        schema_fq = f"`{D._catalog(os.environ['SNOWFLAKE_LZ'])}`.`{D._ident(plan['landing_schema'])}`"
+        with conn.cursor() as cur:
+            cur.execute(f"SHOW TABLES IN {schema_fq}")
+            present = {str(r[1]).lower() for r in cur.fetchall()}  # (database, tableName, isTemporary)
+    finally:
+        conn.close()
+
+    expected = {d["landing_table"].lower() for d in plan["datasets"]} | {"controltable"}
+    missing = sorted(expected - present)
+    if missing:
+        raise RuntimeError(
+            f"Landing tables missing in {schema_fq}: {missing}. The loader never auto-creates landing tables - "
+            f"provision them with the DDL generator (include/Python/createLandingZone.py / lz DDL) first."
+        )
+    log.info("Landing check OK: %d tables present in %s", len(expected), schema_fq)
+    return {"schema": schema_fq, "tables_checked": len(expected)}
+
+
+def extract_one(config_filename: str, table: str) -> None:
+    """Extract one source table and load it to Databricks via the existing extractor."""
+    _require_loader_env()
+    kind, _ = classify(config_filename)
+    path = str(Path(C.CONFIG_DIR) / os.path.basename(config_filename))
+    if kind == "sqlserver":
+        import include.Python.TelTools_SQLServer as extractor
+    else:
+        import include.Python.TelTools_Oracle as extractor
+    log.info("Extracting %s from %s", table, config_filename)
+    extractor.main(path, table)
+    log.info("Loaded %s", table)
+
+
+def validate_load(plan: dict[str, Any], fail_on_empty: bool = False) -> list[dict[str, Any]]:
+    """Every table must have written a CONTROLTABLE row during this run (RUN_TIME >= run_start)."""
+    _require_loader_env()
+    D, conn = _landing_connection(plan["landing_schema"])
+    since = (dt.datetime.strptime(plan["run_start"], "%Y-%m-%d %H:%M:%S.%f") - dt.timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+    fq = D._fq(os.environ["SNOWFLAKE_LZ"], plan["landing_schema"], "CONTROLTABLE")
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT TABLE_NAME, ROW_COUNT, RUN_TIME FROM {fq} "
+                f"WHERE CAST(RUN_TIME AS TIMESTAMP) >= CAST(:since AS TIMESTAMP) "
+                f"QUALIFY row_number() OVER (PARTITION BY TABLE_NAME ORDER BY RUN_TIME DESC) = 1",
+                {"since": since},
+            )
+            rows = {str(r[0]).lower(): r for r in cur.fetchall()}
+    finally:
+        conn.close()
+
+    report, missing, empty = [], [], []
+    for t in plan["tables"]:
+        row = rows.get(t.lower())
+        if row is None:
+            missing.append(t)
+            continue
+        n = int(row[1]) if row[1] not in (None, "") else None
+        report.append({"table": t, "rows": n, "run_time": str(row[2])})
+        if n == 0:
+            empty.append(t)
+        log.info("%-60s rows=%s run_time=%s", t, n, row[2])
+    if missing:
+        raise RuntimeError(f"No CONTROLTABLE entry for this run (load did not complete?): {missing}")
+    if empty and fail_on_empty:
+        raise RuntimeError(f"Loads returned 0 rows and fail_on_empty_load=true: {empty}")
+    if empty:
+        log.warning("%d table(s) loaded 0 rows (normal for incremental loads with no new data): %s", len(empty), empty[:10])
+    return report
+
+####################################################################################################
+##### FILE: include/Python/generate_dbt_databricks_graph.py   (368 lines)
+####################################################################################################
+#!/usr/bin/env python3
+"""
+Generate include/Configuration/dbt_databricks_graph.json from dbt's manifest.
+
+WHY A GENERATED FILE
+    The project has ~5,500 models and its manifest is ~170 MB; parsing it takes
+    minutes. Airflow re-imports DAG files constantly, so the DAGs read this small
+    pre-computed graph instead. Re-run this script (CI step or by hand) whenever
+    models are added/removed or their ref()/source() calls change. The DAGs'
+    pre-flight task compares a dependency fingerprint and fails loudly if the
+    graph is stale.
+
+WHAT IT BUILDS
+    * one NODE per domain/layer folder  (models/<domain>/<layer>), e.g. tea_service/bronze
+      plus one node per installed dbt package that project models depend on
+      (dbt_artifacts)
+    * EDGES between nodes from the model-level ref() graph
+    * nodes that sit in a cycle at this coarser level (e.g. teh_finance
+      silver <-> gold, where individual models are acyclic) are merged into one
+      node, so the Airflow graph is always a DAG; dbt orders the models inside it
+    * edges are transitively reduced (same ordering, far fewer arrows)
+    * source -> nodes and extractor-config -> source maps used by the ingestion DAGs
+
+USAGE
+    python generate_dbt_databricks_graph.py --parse            # deps + parse + generate
+    python generate_dbt_databricks_graph.py --manifest path/to/manifest.json
+
+    --parse runs `dbt deps` and `dbt parse` with placeholder connection values
+    (parsing never opens a connection) using the `dbt` on PATH, e.g. the one in dbt_venv.
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import datetime as dt
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[1]))
+from include.Python import dbt_databricks_common as C  # noqa: E402
+
+PARSE_PLACEHOLDER_ENV = {
+    "DATABRICKS_HOST": "placeholder.cloud.databricks.com",
+    "DATABRICKS_HTTP_PATH": "/sql/1.0/warehouses/placeholder",
+    "DATABRICKS_TOKEN": "placeholder",
+    "DATABRICKS_CATALOG": "main",
+    "DATABRICKS_LZ_CATALOG": "lz",
+    "DATABRICKS_LZ_HVR_CATALOG": "lz_hvr",
+    "DATABRICKS_BRONZE_CATALOG": "bronze",
+    "DATABRICKS_SILVER_CATALOG": "silver",
+    "DATABRICKS_GOLD_CATALOG": "gold",
+    "DATABRICKS_ADMIN_CATALOG": "admin",
+    "DATABRICKS_PUB_CATALOG": "pub",
+    "DATABRICKS_ODS_CATALOG": "ods",
+    "DATABRICKS_SNOWFLAKE_ACCOUNT_USAGE_CATALOG": "sfau",
+    "ASTRO_DEPLOYMENT_NAME": "DEV",
+    "DBT_SEND_ANONYMOUS_USAGE_STATS": "false",
+}
+
+
+# --------------------------------------------------------------------------- manifest
+def run_parse(project_dir: Path, profiles: str) -> Path:
+    env = {**PARSE_PLACEHOLDER_ENV, **os.environ}   # real values win over placeholders
+    env.pop("DBT_TARGET", None)
+    for cmd in (["dbt", "deps"], ["dbt", "parse", "--profiles-dir", profiles]):
+        print("+", " ".join(cmd), flush=True)
+        subprocess.run(cmd, cwd=project_dir, env=env, check=True)
+    return project_dir / "target" / "manifest.json"
+
+
+def group_of(model: dict, root_pkg: str) -> tuple[str, str, str]:
+    """(domain, layer, selector path) for a model node."""
+    if model["package_name"] != root_pkg:
+        return model["package_name"], "package", f"package:{model['package_name']}"
+    parts = model["original_file_path"].replace("\\", "/").split("/")   # models/<domain>/<layer>/file.sql
+    if len(parts) >= 4:
+        return parts[1], parts[2], f"path:{'/'.join(parts[:3])}"
+    return parts[1] if len(parts) > 2 else "root", "_", f"path:{'/'.join(parts[:-1])}"
+
+
+def tarjan_scc(nodes: list, adj: dict) -> list[list]:
+    index, low, on, stack, out, counter = {}, {}, set(), [], [], [0]
+
+    def visit(v):
+        # iterative to stay safe on deep graphs
+        work = [(v, iter(adj.get(v, ())))]
+        index[v] = low[v] = counter[0]; counter[0] += 1
+        stack.append(v); on.add(v)
+        while work:
+            node, it = work[-1]
+            advanced = False
+            for w in it:
+                if w not in index:
+                    index[w] = low[w] = counter[0]; counter[0] += 1
+                    stack.append(w); on.add(w)
+                    work.append((w, iter(adj.get(w, ()))))
+                    advanced = True
+                    break
+                elif w in on:
+                    low[node] = min(low[node], index[w])
+            if advanced:
+                continue
+            work.pop()
+            if work:
+                low[work[-1][0]] = min(low[work[-1][0]], low[node])
+            if low[node] == index[node]:
+                comp = []
+                while True:
+                    w = stack.pop(); on.discard(w); comp.append(w)
+                    if w == node:
+                        break
+                out.append(sorted(comp))
+
+    for n in nodes:
+        if n not in index:
+            visit(n)
+    return out
+
+
+def transitive_reduction(ids: list[str], edges: set[tuple[str, str]]) -> set[tuple[str, str]]:
+    adj = collections.defaultdict(set)
+    for a, b in edges:
+        adj[a].add(b)
+    reach: dict[str, set[str]] = {}
+
+    def descendants(n: str) -> set[str]:
+        if n in reach:
+            return reach[n]
+        seen: set[str] = set()
+        for m in adj[n]:
+            seen.add(m)
+            seen |= descendants(m)
+        reach[n] = seen
+        return seen
+
+    sys.setrecursionlimit(10000)
+    keep = set()
+    for a, b in edges:
+        # drop a->b if b is reachable from a through another direct successor
+        if not any(b in descendants(m) for m in adj[a] if m != b):
+            keep.add((a, b))
+    return keep
+
+
+# --------------------------------------------------------------------------- sources & extractors
+def source_catalog_info(project_dir: Path) -> dict[str, dict]:
+    """source name -> {catalog_env, schema_env, schema_default} read from the raw source YAMLs."""
+    try:
+        import yaml
+    except ImportError:
+        return {}
+    info: dict[str, dict] = {}
+    env_re = re.compile(r"env_var\(\s*'([A-Z0-9_]+)'(?:\s*,\s*'([^']*)')?")
+    for f in sorted((project_dir / "models").rglob("*.yml")):
+        try:
+            doc = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        except Exception:  # noqa: BLE001
+            continue
+        for src in doc.get("sources", []) or []:
+            name = src.get("name")
+            if not name:
+                continue
+            cat = env_re.search(str(src.get("database", "")))
+            sch = env_re.search(str(src.get("schema", "")))
+            rec = info.setdefault(name, {"catalog_env": set(), "schema_env": set(), "schema_default": set()})
+            if cat:
+                rec["catalog_env"].add(cat.group(1))
+            if sch:
+                rec["schema_env"].add(sch.group(1))
+                if sch.group(2):
+                    rec["schema_default"].add(sch.group(2))
+    return {k: {kk: sorted(vv) for kk, vv in v.items()} for k, v in info.items()}
+
+
+def discover_extractors(config_dir: Path) -> list[dict]:
+    out = []
+    for kind, prefix in (("sqlserver", "TelTools_SQLServer_"), ("oracle", "TelTools_Oracle_")):
+        for f in sorted(glob.glob(str(config_dir / f"{prefix}*_Extract.json"))):
+            name = re.search(rf"{prefix}(.+)_Extract\.json$", os.path.basename(f)).group(1)
+            data = json.loads(Path(f).read_text(encoding="utf-8-sig"))
+            datasets = []
+            for server_key, ds in data.items():
+                if not isinstance(ds, dict):
+                    continue
+                for k, v in ds.items():
+                    if k.startswith("DataSet") and isinstance(v, dict):
+                        datasets.append({"table": v["table"], "landing_table": v["sftablename"]})
+            # landing schema exactly as the extractor modules derive it
+            landing_schema = name.upper().split("-")[0] if kind == "sqlserver" else name.upper()
+            out.append({
+                "id": f"{kind}:{name}",
+                "kind": kind,
+                "config_filename": os.path.basename(f),
+                "landing_schema": landing_schema,
+                "datasets": datasets,
+            })
+    return out
+
+
+# --------------------------------------------------------------------------- main
+def build(manifest_path: Path, project_dir: Path, config_dir: Path) -> dict:
+    m = json.loads(manifest_path.read_text(encoding="utf-8"))
+    root_pkg = m["metadata"].get("project_name") or project_dir.name
+    nodes = m["nodes"]
+    models = {k: v for k, v in nodes.items() if v["resource_type"] == "model"}
+    tests = [v for v in nodes.values() if v["resource_type"] == "test"]
+
+    grp = {k: group_of(v, root_pkg) for k, v in models.items()}
+    keys = sorted(set(grp.values()))
+    gid = lambda g: f"{g[0]}__{g[1]}"  # noqa: E731
+
+    # model-level edges aggregated to (domain, layer) level
+    edges: set[tuple[tuple, tuple]] = set()
+    src_by_group: dict[tuple, set[str]] = collections.defaultdict(set)
+    for k, v in models.items():
+        for d in v["depends_on"]["nodes"]:
+            if d in models:
+                if grp[d] != grp[k]:
+                    edges.add((grp[d], grp[k]))
+            elif d.startswith("source."):
+                src_by_group[grp[k]].add(m["sources"][d]["source_name"])
+
+    # package models are only worth running if some project model needs them
+    needed_pkgs = {a for a, b in edges if a[1] == "package"}
+    keys = [g for g in keys if g[1] != "package" or g in needed_pkgs]
+    edges = {(a, b) for a, b in edges if a in keys and b in keys}
+
+    adj = collections.defaultdict(set)
+    for a, b in edges:
+        adj[a].add(b)
+    comps = tarjan_scc(keys, adj)
+    comp_of = {g: i for i, comp in enumerate(comps) for g in comp}
+
+    counts = collections.Counter(grp[k] for k in models)
+    test_counts: collections.Counter = collections.Counter()
+    path_to_group = {}
+    for g in keys:
+        if g[1] != "package":
+            path_to_group[f"models/{g[0]}/{g[1]}/"] = g
+    for t in tests:
+        p = t["original_file_path"].replace("\\", "/")
+        for prefix, g in path_to_group.items():
+            if p.startswith(prefix):
+                test_counts[g] += 1
+                break
+
+    out_nodes = []
+    node_name: dict[int, str] = {}
+    for i, comp in enumerate(comps):
+        domains = sorted({g[0] for g in comp})
+        layers = [g[1] for g in comp]
+        order = {"bronze": 0, "silver": 1, "gold": 2}
+        comp_sorted = sorted(comp, key=lambda g: (order.get(g[1], 9), g[1]))
+        if len(domains) == 1:
+            domain = domains[0]
+            nid = f"{domain}__" + "_".join(g[1] for g in comp_sorted)
+            task = "_".join(g[1] for g in comp_sorted)
+        else:
+            domain = "merged"
+            nid = "merged__" + "__".join(gid(g) for g in comp_sorted)
+            task = "__".join(gid(g) for g in comp_sorted)
+        node_name[i] = nid
+        out_nodes.append({
+            "id": nid,
+            "group": domain,
+            "task": task,
+            "members": [gid(g) for g in comp_sorted],
+            "selector": " ".join(g[2] for g in comp_sorted),
+            "models": sum(counts[g] for g in comp),
+            "tests": sum(test_counts[g] for g in comp),
+            "sources": sorted(set().union(*[src_by_group[g] for g in comp])),
+            "merged_cycle": len(comp) > 1,
+        })
+
+    node_edges = {(node_name[comp_of[a]], node_name[comp_of[b]]) for a, b in edges if comp_of[a] != comp_of[b]}
+    ids = [n["id"] for n in out_nodes]
+    reduced = transitive_reduction(ids, node_edges)
+    C.assert_acyclic(ids, reduced)
+
+    # sources
+    cat_info = source_catalog_info(project_dir)
+    nodes_by_source: dict[str, set[str]] = collections.defaultdict(set)
+    for g, names in src_by_group.items():
+        for s in names:
+            nodes_by_source[s].add(node_name[comp_of[g]] if g in comp_of else gid(g))
+    src_tables: dict[str, dict] = collections.defaultdict(lambda: {"schemas": set(), "tables": set()})
+    for s in m["sources"].values():
+        rec = src_tables[s["source_name"]]
+        rec["schemas"].add(s["schema"])
+        rec["tables"].add(s.get("identifier") or s["name"])
+    sources = {}
+    for name, rec in sorted(src_tables.items()):
+        sources[name] = {
+            "schemas": sorted(rec["schemas"]),
+            "tables": sorted(rec["tables"]),
+            "catalog_env": cat_info.get(name, {}).get("catalog_env", []),
+            "nodes": sorted(nodes_by_source.get(name, [])),
+        }
+
+    # extractor configs -> dbt sources (match on landing schema + the LZ catalog)
+    extractors = discover_extractors(config_dir) if config_dir.is_dir() else []
+    for ex in extractors:
+        matched = [
+            n for n, s in sources.items()
+            if any(sc.upper() == ex["landing_schema"] for sc in s["schemas"])
+            and (not s["catalog_env"] or "DATABRICKS_LZ_CATALOG" in s["catalog_env"])
+        ]
+        ex["dbt_sources"] = sorted(matched)
+        ex["dbt_select"] = " ".join(f"source:{n}+" for n in sorted(matched))
+        dbt_tables = {t.lower() for n in matched for t in sources[n]["tables"]}
+        ex["landing_tables_known_to_dbt"] = sum(1 for d in ex["datasets"] if d["landing_table"].lower() in dbt_tables)
+
+    return {
+        "schema_version": 1,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "dbt": {"project_name": root_pkg, "dbt_version": m["metadata"].get("dbt_version")},
+        "dependency_fingerprint": C.dependency_fingerprint(str(project_dir)),
+        "stats": {
+            "models_in_graph": sum(n["models"] for n in out_nodes),
+            "tests_in_graph": sum(n["tests"] for n in out_nodes),
+            "tasks": len(out_nodes),
+            "edges": len(reduced),
+            "edges_before_reduction": len(node_edges),
+            "merged_cycle_nodes": [n["id"] for n in out_nodes if n["merged_cycle"]],
+            "disabled_models": sum(1 for v in m["disabled"].values() for x in v if x["resource_type"] == "model"),
+        },
+        "nodes": sorted(out_nodes, key=lambda n: (n["group"], n["task"])),
+        "edges": sorted([list(e) for e in reduced]),
+        "sources": sources,
+        "extractors": extractors,
+    }
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--project-dir", default=C.DBT_PROJECT_DIR)
+    ap.add_argument("--manifest", help="existing manifest.json (default: <project>/target/manifest.json)")
+    ap.add_argument("--parse", action="store_true", help="run `dbt deps` + `dbt parse` first")
+    ap.add_argument("--profiles-dir", default=None, help="default: <project>/DEV_PROFILES")
+    ap.add_argument("--config-dir", default=C.CONFIG_DIR)
+    ap.add_argument("--out", default=C.GRAPH_PATH)
+    a = ap.parse_args()
+
+    project = Path(a.project_dir).resolve()
+    manifest = Path(a.manifest) if a.manifest else project / "target" / "manifest.json"
+    if a.parse:
+        manifest = run_parse(project, a.profiles_dir or str(project / "DEV_PROFILES"))
+    if not manifest.is_file():
+        sys.exit(f"manifest not found: {manifest} (use --parse or --manifest)")
+
+    graph = build(manifest, project, Path(a.config_dir))
+    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(a.out).write_text(json.dumps(graph, indent=1, sort_keys=False) + "\n", encoding="utf-8")
+    s = graph["stats"]
+    print(f"wrote {a.out}: {s['tasks']} tasks, {s['edges']} edges "
+          f"({s['edges_before_reduction']} before reduction), {s['models_in_graph']} models, {s['tests_in_graph']} tests")
+    if s["merged_cycle_nodes"]:
+        print("merged to break group-level cycles:", ", ".join(s["merged_cycle_nodes"]))
+
+
+if __name__ == "__main__":
+    main()
+
+####################################################################################################
+##### FILE: include/Configuration/dbt_databricks_job.example.json   (38 lines)
+####################################################################################################
+{
+  "_comment": "Copy to dbt_databricks_job.json (or put the same JSON in env DBT_DATABRICKS_JOB_CONFIG) and set DBT_EXECUTION_MODE=databricks_job. Only used by DBT_DATABRICKS_PIPELINE. Replace every <placeholder>.",
+
+  "git_source": {
+    "git_url": "https://github.com/<org>/<repo>",
+    "git_provider": "gitHub",
+    "git_branch": "main"
+  },
+
+  "project_directory": "astro_datautility/dags/dbt/dbt_databricks",
+  "profiles_directory": null,
+
+  "warehouse_id": null,
+
+  "job_cluster": {
+    "spark_version": "15.4.x-scala2.12",
+    "node_type_id": "<node-type, e.g. Standard_DS3_v2>",
+    "num_workers": 0,
+    "data_security_mode": "SINGLE_USER",
+    "spark_conf": {
+      "spark.databricks.cluster.profile": "singleNode",
+      "spark.master": "local[*, 4]"
+    },
+    "custom_tags": { "ResourceClass": "SingleNode" }
+  },
+
+  "spark_env_vars": {},
+
+  "secret_env_vars": {
+    "DATABRICKS_TOKEN": "{{secrets/<scope>/<dbt-token-key>}}",
+    "DATABRICKS_HOST": "<workspace-host-without-scheme>",
+    "DATABRICKS_HTTP_PATH": "/sql/1.0/warehouses/<warehouse-id>"
+  },
+
+  "dbt_pip_spec": "dbt-databricks>=1.7.17,<1.8",
+  "timeout_seconds": 21600,
+  "polling_period_seconds": 30
+}
+
+####################################################################################################
+##### FILE: patches/dbt_project_rename.patch   (23 lines)
+####################################################################################################
+# dbt_project.yml: rename the dbt project from 'dbt_databricks' to 'dbt_databricks_proj'.
+# Why: the project name collides with the dbt-databricks adapter's internal package name
+# ('dbt_databricks'), which dbt 1.7 rejects. The profile name is NOT changed, so the
+# *_PROFILES/profiles.yml files keep working.
+# Apply from the repository root:  git apply patches/dbt_project_rename.patch
+#                           or:  patch -p1 < patches/dbt_project_rename.patch
+--- a/astro_datautility/dags/dbt/dbt_databricks/dbt_project.yml	2026-10-25 17:33:06.186608118 +0000
++++ b/astro_datautility/dags/dbt/dbt_databricks/dbt_project.yml	2026-10-25 17:33:06.188639101 +0000
+@@ -1,4 +1,4 @@
+-name: dbt_databricks
++name: dbt_databricks_proj
+ version: 1.0.0
+ config-version: 2
+ profile: dbt_databricks
+@@ -22,7 +22,7 @@
+ on-run-end:
+ - '{{ dbt_artifacts.upload_results(results) if env_var(''DBT_UPLOAD_ARTIFACTS'', ''false'') | lower == ''true'' }}'
+ models:
+-  dbt_databricks:
++  dbt_databricks_proj:
+     +database: '{{ env_var(''DATABRICKS_CATALOG'') }}'
+     +schema: '{{ env_var(''DATABRICKS_SCHEMA'', ''dbt'') }}'
+     +materialized: incremental
+
+####################################################################################################
+##### FILE: requirements.additions.txt   (11 lines)
+####################################################################################################
+# Append these lines to astro_datautility/requirements.txt (Airflow-side, NOT dbt_venv).
+# dbt-core 1.7.1 / dbt-databricks 1.7.17 are already installed in $AIRFLOW_HOME/dbt_venv by the Dockerfile.
+#
+# Needed by: DBT_EXECUTION_MODE=databricks_job (DatabricksSubmitRunOperator) and the
+# 'databricks_default' Airflow connection helper.
+apache-airflow-providers-databricks
+# Needed by: DATABRICKS_END_TO_END.check_databricks, the pre-flight 'dbt debug' fallback and the ingestion
+# landing/validation checks (databricks_teltools.py already imports it; keep it if already listed).
+databricks-sql-connector
+# (No pyarrow pin here: the Dockerfile already pins pyarrow inside dbt_venv. Airflow-side pyarrow is whatever
+#  the Astro runtime / existing requirements.txt provide.)
+
+##### END OF REVIEW FILE
